@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  repository-integrity:
+    name: Repository integrity
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required architecture paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in README.md core/database docs tests; do
+            test -e "$path"
+          done
+
+      - name: Validate authorization boundary when present
+        shell: bash
+        run: |
+          set -euo pipefail
+          file="core/database/migrations/0002_capability_policy_boundary.sql"
+          if [ ! -f "$file" ]; then
+            echo "Authorization-boundary migration is not yet present on this branch; dedicated authorization validation remains gated by its implementation PR."
+            exit 0
+          fi
+          grep -q "core.authorize_capability" "$file"
+          grep -q "security invoker" "$file"
+          grep -q "set search_path = ''" "$file"
+          grep -q "revoke execute" "$file"
+          grep -q "grant execute.*authenticated" "$file"
+
+      - name: Validate architecture governance
+        shell: bash
+        run: |
+          set -euo pipefail
+          file="docs/ARCHITECTURE-GOVERNANCE.md"
+          test -f "$file"
+          grep -qi "TypeScript" "$file"
+          grep -qi "Rust" "$file"
+          grep -qi "Python" "$file"
+          grep -qi "ADR" "$file"
+
+      - name: Validate authorization ADR when boundary is present
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration="core/database/migrations/0002_capability_policy_boundary.sql"
+          adr="docs/adr/0001-canonical-capability-authorization-boundary.md"
+          if [ ! -f "$migration" ]; then
+            echo "Authorization implementation is not yet present; authorization ADR validation remains gated by its implementation PR."
+            exit 0
+          fi
+          test -f "$adr"
+          grep -qi "authorization" "$adr"
+          grep -qi "RLS" "$adr"
+          grep -qi "security" "$adr"
+
+  sql-static-security:
+    name: SQL static security checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Reject unsafe authorization-boundary patterns when present
+        shell: bash
+        run: |
+          set -euo pipefail
+          file="core/database/migrations/0002_capability_policy_boundary.sql"
+          if [ ! -f "$file" ]; then
+            echo "Authorization-boundary migration is not yet present on this branch; no production SQL security assertion is applicable yet."
+            exit 0
+          fi
+          ! grep -Eqi "grant execute on function core\.authorize_capability.*public" "$file"
+          grep -Eqi "security invoker" "$file"
+          grep -Eqi "set search_path = ''" "$file"
+
+      - name: Check migration files are present
+        shell: bash
+        run: |
+          set -euo pipefail
+          find core/database/migrations -maxdepth 1 -type f -name '*.sql' | sort | grep -q .
