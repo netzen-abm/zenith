@@ -77,8 +77,29 @@ zenith/
 
 ZENITH uses a layered licensing strategy. Apache-2.0 is the default for appropriate open-core libraries and interoperability tooling. AGPL-3.0 may be applied selectively to appropriate network-facing collaborative server components. Commercial enterprise and hosted capabilities may be proprietary under commercial terms/EULA. Data, research materials, models, hardware designs, documentation, and trademarks are governed separately according to their rights and provenance.
 
-See `docs/ARCHITECTURE-GOVERNANCE.md` and `docs/LICENSING.md`.
+## Canonical architecture and imported history
+
+The repository now contains a consolidated archival layer under `docs/archive/`. It preserves the architecture, ontology, federation, security, UX, gate, implementation and research decisions produced before the repository bootstrap, including source-derived material from the supplied Word/PPTX/Excel packages and the portable Past Intelligence Core security/gate artifacts.
+
+**Rule:** archived/source-derived artifacts are retained for traceability. They do not silently override the current canonical ZENITH contracts. Any substantive change must be reviewed and, where architectural, captured in an ADR.
+
+Key references:
+- `docs/archive/ARTIFACT-REGISTER.md`
+- `docs/archive/MASTER-ARCHITECTURE-BLUEPRINT.md`
+- `docs/archive/IMPLEMENTATION-CONTRACT-FREEZE.md`
+- `docs/archive/ARCHITECTURE-GATE-TEST-SPECIFICATION.md`
+- `docs/archive/ONTOLOGY-AND-FEDERATION-BASELINE.md`
+- `docs/archive/SECURITY-FEDERATION-AND-UX-BASELINE.md`
+- `docs/research/PATTANAM-KEEZHADI-RESEARCH-BASELINE.md`
+- `core/database/migrations/0001_security_kernel.sql`
+- `tests/reference_gate_harness/`
+
+## Naming note
+
+ZENITH remains the working-selected ecosystem identity, but the bare name is not treated as legally exclusive or cleared. Namespace/domain/package/trademark due diligence remains a governance item before legal lock.
 
 ## Status
 
-Architecture and implementation contracts are frozen for controlled application implementation. The initial repository scaffold is being established before feature expansion.
+Architecture and implementation contracts are frozen for controlled application implementation. The initial repository scaffold and historical architecture corpus are now established. Runtime implementation and final production gate evidence remain future work.
+
+See `docs/ARCHITECTURE-GOVERNANCE.md` and `docs/LICENSING.md`.
