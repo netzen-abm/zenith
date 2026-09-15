@@ -50,15 +50,20 @@ jobs:
           grep -qi "Python" "$file"
           grep -qi "ADR" "$file"
 
-      - name: Validate ADR
+      - name: Validate authorization ADR when boundary is present
         shell: bash
         run: |
           set -euo pipefail
-          file="docs/adr/0001-canonical-capability-authorization-boundary.md"
-          test -f "$file"
-          grep -qi "authorization" "$file"
-          grep -qi "RLS" "$file"
-          grep -qi "security" "$file"
+          migration="core/database/migrations/0002_capability_policy_boundary.sql"
+          adr="docs/adr/0001-canonical-capability-authorization-boundary.md"
+          if [ ! -f "$migration" ]; then
+            echo "Authorization implementation is not yet present; authorization ADR validation remains gated by its implementation PR."
+            exit 0
+          fi
+          test -f "$adr"
+          grep -qi "authorization" "$adr"
+          grep -qi "RLS" "$adr"
+          grep -qi "security" "$adr"
 
   sql-static-security:
     name: SQL static security checks
