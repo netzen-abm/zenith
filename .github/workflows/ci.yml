@@ -65,6 +65,34 @@ jobs:
           grep -qi "RLS" "$adr"
           grep -qi "security" "$adr"
 
+  source-size-governance:
+    name: Source size governance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enforce 190-line source limit
+        shell: bash
+        run: |
+          set -euo pipefail
+          max_lines=190
+          failed=0
+          while IFS= read -r -d '' file; do
+            case "$file" in
+              */vendor/*|*/generated/*|*/dist/*|*/build/*|*/coverage/*) continue ;;
+            esac
+            lines=$(wc -l < "$file")
+            if [ "$lines" -gt "$max_lines" ]; then
+              printf 'ERROR: %s has %s lines; maximum is %s.\n' "$file" "$lines" "$max_lines"
+              failed=1
+            fi
+          done < <(find . -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' -o -name '*.py' -o -name '*.rs' -o -name '*.ex' -o -name '*.exs' \) -not -path './.git/*' -print0)
+          if [ "$failed" -ne 0 ]; then
+            echo "Source files must remain within the 190-line maintainability limit. Split by responsibility rather than artificially truncating files."
+            exit 1
+          fi
+
   sql-static-security:
     name: SQL static security checks
     runs-on: ubuntu-latest
