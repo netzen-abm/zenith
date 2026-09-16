@@ -20,6 +20,7 @@ alter table core.organisations add column if not exists slug text;
 alter table core.organisations alter column slug set not null;
 alter table core.identities add column if not exists auth_user_id uuid;
 alter table core.identities add column if not exists display_name text;
+alter table core.identities alter column id set default gen_random_uuid();
 alter table core.resources add column if not exists epistemic_status text;
 alter table core.resources add column if not exists sensitivity text default 'public';
 alter table core.resources add column if not exists geom geometry(Geometry,4326);
@@ -74,6 +75,9 @@ alter table core.resource_memberships add constraint resource_memberships_member
 alter table core.policy_obligations drop constraint if exists policy_obligations_resource_id_fkey;
 alter table core.policy_obligations add constraint policy_obligations_resource_id_fkey foreign key (resource_id) references core.resources(id) on delete cascade;
 
+drop index if exists core.idx_resources_org;
+drop index if exists core.idx_memberships_identity;
+drop index if exists core.idx_resources_public_geom;
 create index if not exists resources_organisation_idx on core.resources(organisation_id);
 create index if not exists resources_geom_idx on core.resources using gist(geom);
 
