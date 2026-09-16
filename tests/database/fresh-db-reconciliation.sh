@@ -67,9 +67,9 @@ run_snapshot() {
 }
 run_snapshot server-version "select version()"
 run_snapshot extensions "select format('%s:%s', extname, extversion) from pg_extension where extname in ('postgis','pgcrypto') order by 1"
-run_snapshot relations "select format('%s.%s:%s', n.nspname, c.relname, c.relkind::text) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname in ('core','audit') and c.relkind in ('r','v','m','f','p') order by 1,2"
-run_snapshot functions "select format('%s.%s(%s):%s:%s', n.nspname, p.proname, pg_get_function_identity_arguments(p.oid), p.prosecdef::text, coalesce(p.proconfig::text,'')) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('core','audit') order by 1,2,3"
-run_snapshot rls-policies "select format('%s.%s:%s:%s:%s', schemaname, tablename, policyname, coalesce(cmd,''), coalesce(qual,'') || ':' || coalesce(with_check,'')) from pg_policies where schemaname in ('core','audit') order by 1,2,3"
-run_snapshot columns "select format('%s.%s:%s:%s:%s', n.nspname, c.relname, a.attname, pg_catalog.format_type(a.atttypid,a.atttypmod), a.attnotnull::text) from pg_attribute a join pg_class c on c.oid=a.attrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname in ('core','audit') and c.relkind in ('r','v','m') and a.attnum > 0 and not a.attisdropped order by 1,2,3"
+run_snapshot relations "select format('%s.%s:%s', n.nspname, c.relname, c.relkind::text) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname in ('core','audit') and c.relkind in ('r','v','m','f','p') order by 1"
+run_snapshot functions "select format('%s.%s(%s):%s:%s', n.nspname, p.proname, pg_get_function_identity_arguments(p.oid), p.prosecdef::text, coalesce(p.proconfig::text,'')) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('core','audit') order by 1"
+run_snapshot rls-policies "select format('%s.%s:%s:%s:%s', schemaname, tablename, policyname, coalesce(cmd,''), coalesce(qual,'') || ':' || coalesce(with_check,'')) from pg_policies where schemaname in ('core','audit') order by 1"
+run_snapshot columns "select format('%s.%s:%s:%s:%s', n.nspname, c.relname, a.attname, pg_catalog.format_type(a.atttypid,a.atttypmod), a.attnotnull::text) from pg_attribute a join pg_class c on c.oid=a.attrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname in ('core','audit') and c.relkind in ('r','v','m') and a.attnum > 0 and not a.attisdropped order by 1"
 cat "$snapshot_dir"/*.txt
 printf '\nFresh repository database reproduction and foundation contract assertions completed.\n'
