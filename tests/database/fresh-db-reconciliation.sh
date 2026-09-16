@@ -33,6 +33,11 @@ if [ -z "${DATABASE_URL:-}" ]; then
 fi
 
 PSQL=(psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -X)
+for attempt in $(seq 1 30); do
+  if "${PSQL[@]}" -Atc "select 1" >/dev/null 2>&1; then break; fi
+  [ "$attempt" -eq 30 ] && { echo "DATABASE_URL did not become queryable" >&2; exit 1; }
+  sleep 2
+done
 
 "${PSQL[@]}" -f "$ROOT_DIR/tests/database/fresh-db-auth-shim.sql"
 for migration in "$ROOT_DIR"/core/database/migrations/*.sql; do
