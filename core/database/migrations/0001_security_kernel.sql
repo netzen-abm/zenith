@@ -47,10 +47,10 @@ alter table audit.events enable row level security;
 
 create policy organisations_same_tenant on core.organisations for select to authenticated using(id=core.current_organisation_id());
 create policy identities_same_tenant on core.identities for select to authenticated using(organisation_id=core.current_organisation_id());
-create policy resources_read_policy on core.resources for select to authenticated using(core.can_read_resource(core.resources));
+create policy resources_read_policy on core.resources for select to authenticated using(core.can_read_resource(resources));
 create policy resources_insert_policy on core.resources for insert to authenticated with check(organisation_id=core.current_organisation_id() and created_by=core.current_identity_id());
-create policy resources_update_policy on core.resources for update to authenticated using(core.can_write_resource(core.resources)) with check(organisation_id=core.current_organisation_id());
-create policy resources_delete_policy on core.resources for delete to authenticated using(core.can_write_resource(core.resources));
+create policy resources_update_policy on core.resources for update to authenticated using(core.can_write_resource(resources)) with check(organisation_id=core.current_organisation_id());
+create policy resources_delete_policy on core.resources for delete to authenticated using(core.can_write_resource(resources));
 create policy memberships_read_policy on core.resource_memberships for select to authenticated using(exists(select 1 from core.resources r where r.id=resource_memberships.resource_id and core.can_read_resource(r)));
 create policy policy_obligations_read_policy on core.policy_obligations for select to authenticated using(true);
 create policy audit_insert_policy on audit.events for insert to authenticated with check(actor_identity_id=core.current_identity_id() and actor_organisation_id=core.current_organisation_id());

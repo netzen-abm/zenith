@@ -1,0 +1,71 @@
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Dependencies / build outputs
+node_modules/
+.pnpm-store/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# Rust
+/target/
+
+# Elixir
+/_build/
+/deps/
+/.elixir_ls/
+
+# Generated / coverage outputs
+/dist/
+/build/
+/coverage/
+*.sarif
+
+# Local databases / runtime state
+*.sqlite
+*.sqlite3
+*.db
+
+# Temporary reconciliation/test artifacts
+/.tmp/
+
+# Local logs
+*.log
+
+# Tool caches
+.cache/
+
+# Supabase local development artifacts
+.supabase/
+
+# Generated credentials / local service state
+credentials.json
+service-account*.json
+
+# Keep intentional examples/templates trackable
+!.github/**
+!docs/**
+!tests/**
