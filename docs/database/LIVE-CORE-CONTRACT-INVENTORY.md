@@ -99,13 +99,15 @@ Verified public views include:
 - `core.public_resource_time_spans`
 - `core.public_research_questions`
 
-Public resource projection exposes only public resources. Spatial representations expose geometry only when the resource is public and precision is generalized/regional/unknown. Sensitive resources do not receive precise geometry through the public projections.
+All six are `security_invoker=true`. Their exact live definitions were extracted. Public resource projection exposes only public resources; spatial representations expose geometry only for public resources at generalized/regional/unknown precision; relationship and spatial-relation projections require both resources to be public; time-span projection requires the resource to be public; research-question projection exposes only `open` and `active` questions.
 
 ## 9. Grants and execution surface
 
-The live base tables are owned by `postgres`; authenticated has SELECT on Core tables and `audit.events`, while anonymous has SELECT on `core.resources` and the public projection views. `audit.kernel_gate_results` has no authenticated table grant in the extracted ACL. Public projection views grant SELECT to `anon` and `authenticated`.
+Live base tables are owned by `postgres`. Authenticated has SELECT on Core tables and `audit.events`; anonymous has SELECT on `core.resources`. Public projection views grant SELECT to `anon` and `authenticated`. `audit.kernel_gate_results` has no authenticated table grant in the extracted ACL.
 
-The four authorization helpers inspected are owned by `postgres`; the three authorization decision/context helpers are `SECURITY DEFINER` with an empty `search_path`, while `authorize_capability` is `SECURITY INVOKER`. Exact function ACLs remain a closure item because ownership and function execution privileges must be captured separately from table grants.
+The five Core authorization/context functions are owned by `postgres`. `authorize_capability(text, uuid, text)` grants EXECUTE to `authenticated` and not to `public`; `current_identity_id`, `current_organisation_id`, `can_read_resource`, and `can_write_resource` have no explicit non-owner EXECUTE grant in their ACLs. The five trigger functions retain PostgreSQL's default PUBLIC EXECUTE plus authenticated EXECUTE in their explicit ACLs.
+
+Schema ACLs grant USAGE to `authenticated` on `core` and `audit`, and USAGE to `anon` on `core`. No Core/Audit sequences were identified in the extracted catalog. Default privileges exist primarily in Supabase-managed schemas (`auth`, `extensions`, `graphql`, `graphql_public`, `public`, `realtime`, `storage`) rather than Core/Audit; they should not be copied into ZENITH application migrations without a specific need.
 
 ## 10. Triggers
 
@@ -115,24 +117,25 @@ Five user-defined triggers were verified: updated-at triggers on `core.claims`, 
 
 No user-defined enum/domain/composite types were identified in `core` or `audit`; PostgreSQL's table row composite types appeared in the catalog query and are not independent application types.
 
-Installed extensions relevant to the Core include PostGIS 3.3.7 in `public`, pgcrypto 1.3 and uuid-ossp 1.1 in `extensions`, plus the Supabase-managed extension inventory. The full extension inventory is platform-level state rather than an instruction to recreate every available extension in ZENITH migrations. PostGIS remains a documented public-schema platform residual pending separate hardening decisions.
+PostGIS 3.3.7 is installed in `public`. The broader Supabase platform extension inventory includes pgcrypto and uuid-ossp in `extensions`, among many platform-managed extensions. The full platform inventory is not an instruction to recreate every available extension in ZENITH migrations.
 
-## 12. Remaining exact extraction
+The known PostGIS advisor residual remains: three public `ST_EstimatedExtent` overloads are owned by `supabase_admin` and currently grant EXECUTE to `anon`, `authenticated`, and `service_role`. This is a platform-security residual to be handled as a separate bounded hardening decision, not silently altered as part of migration parity.
 
-The following still require exact repository-grade extraction:
+## 12. Remaining exact extraction / verification
 
-- function ACLs/EXECUTE grants and ownership for every relevant function
-- complete view definitions/options and view privileges
-- sequence privileges and default privileges
-- schema privileges and ownership
-- complete PostGIS/public-schema security state, including the known advisor residuals
-- comments and other non-object behavioral metadata where material
+The structural contract extraction is now substantially complete. Remaining closure work is behavioral rather than broad catalog discovery:
+
+- verify fresh-database reproduction from repository migrations;
+- compare resulting schema/security behavior with this live contract;
+- execute authenticated positive/negative authorization tests once a real Auth test runtime is available;
+- verify cross-tenant isolation and sensitive-coordinate exposure end-to-end;
+- separately decide whether the known PostGIS `ST_EstimatedExtent` platform residual requires further hardening.
 
 ## 13. Reconciliation rule
 
 Forward migrations must reproduce effective live behavior, not merely object names. Historical migrations remain intact. New reconciliation migrations must be bounded, review-gated, and subject to the 190-line source governance rule where splitting preserves atomicity.
 
-Do not apply speculative live DDL. First complete the contract extraction, map each live generation to repository history or an explicit reconciliation artifact, then validate the result on a fresh non-production database.
+Do not apply speculative live DDL. First map each live generation to repository history or an explicit reconciliation artifact, then validate the result on a fresh non-production database.
 
 ## 14. Closure criteria
 
