@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Reproduces the repository migration baseline in an isolated PostGIS database
+# and emits a deterministic catalog snapshot for comparison with the verified
+# live Core contract. This intentionally does not touch Supabase production.
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+CONTAINER="zenith-reconciliation-postgres"
+IMAGE="postgis/postgis:16-3.4"
+DB="zenith"
+USER="postgres"
+PASSWORD="postgres"
+PORT="55432"
+
+cleanup() {
+  docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+
+command -v docker >/dev/null || { echo "docker is required" >&2; exit 2; }
+
+cleanup
+docker run -d --name "$CONTAINER" \
+  -e POSTGRES_DB="$DB" \
+  -e POSTGRES_USER="$USER" \
+  -e POSTGRES_PASSWORD="$PASSWORD" \
+  -p "$PORT:5432" \
+  "$IMAGE" >/dev/null
+
+for attempt in $(seq 1 60); do
+  if docker exec "$CONTAINER" pg_isready -U "$USER" -d "$DB" >/dev/null 2>&1; then
+    break
+  fi
+  if [ "$attempt" -eq 60 ]; then
+    echo "PostGIS database did not become ready" >&2
+    exit 1
+  fi
+  sleep 2
+done
+
+export PGPASSWORD="$PASSWORD"
+PSQL=(psql -h 127.0.0.1 -p "$PORT" -U "$USER" -d "$DB" -v ON_ERROR_STOP=1 -X)
+
+for migration in "$ROOT_DIR"/core/database/migrations/*.sql; do
+  echo "==> applying $(basename "$migration")"
+  "${PSQL[@]}" -f "$migration"
+done
+
+snapshot_dir="$ROOT_DIR/.tmp/fresh-db-reconciliation"
+rm -rf "$snapshot_dir"
+mkdir -p "$snapshot_dir"
+
+"${PSQL[@]}" -Atc "select version()" > "$snapshot_dir/server-version.txt"
+"${PSQL[@]}" -Atc "select extname || ':' || extversion from pg_extension where extname in ('postgis','pgcrypto','uuid-ossp') order by 1" > "$snapshot_dir/extensions.txt"
+"${PSQL[@]}" -Atc "select n.nspname || '.' || c.relname || ':' || c.relkind from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname in ('core','audit') and c.relkind in ('r','v','m','f','p') order by 1,2" > "$snapshot_dir/relations.txt"
+"${PSQL[@]}" -Atc "select n.nspname || '.' || p.proname || '(' || pg_get_function_identity_arguments(p.oid) || '):' || p.prosecdef || ':' || coalesce(p.proconfig::text,'') from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('core','audit') order by 1,2,3" > "$snapshot_dir/functions.txt"
+"${PSQL[@]}" -Atc "select schemaname || '.' || tablename || ':' || policyname || ':' || coalesce(cmd,'') || ':' || coalesce(qual,'') || ':' || coalesce(with_check,'') from pg_policies where schemaname in ('core','audit') order by 1,2,3" > "$snapshot_dir/rls-policies.txt"
+"${PSQL[@]}" -Atc "select n.nspname || '.' || c.relname || ':' || a.attname || ':' || pg_catalog.format_type(a.atttypid,a.atttypmod) || ':' || a.attnotnull from pg_attribute a join pg_class c on c.oid=a.attrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname in ('core','audit') and c.relkind in ('r','v','m') and a.attnum > 0 and not a.attisdropped order by 1,2,3" > "$snapshot_dir/columns.txt"
+
+cat "$snapshot_dir"/*.txt
+printf '\nFresh repository database reproduction completed.\n'
