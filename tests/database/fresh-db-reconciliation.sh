@@ -32,10 +32,19 @@ if [ -z "${DATABASE_URL:-}" ]; then
   DATABASE_URL="$LOCAL_DB_URL"
 fi
 
-PSQL=(psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -X)
+: "${DATABASE_URL:?DATABASE_URL must be set}"
+PSQL=(psql --dbname="$DATABASE_URL" -v ON_ERROR_STOP=1 -X)
+echo "==> waiting for database connectivity"
 for attempt in $(seq 1 30); do
-  if "${PSQL[@]}" -Atc "select 1" >/dev/null 2>&1; then break; fi
-  [ "$attempt" -eq 30 ] && { echo "DATABASE_URL did not become queryable" >&2; exit 1; }
+  if "${PSQL[@]}" -Atc "select 1" >/dev/null 2>&1; then
+    echo "==> database connectivity ready"
+    break
+  fi
+  if [ "$attempt" -eq 30 ]; then
+    echo "DATABASE_URL did not become queryable" >&2
+    "${PSQL[@]}" -Atc "select 1" || true
+    exit 1
+  fi
   sleep 2
 done
 
