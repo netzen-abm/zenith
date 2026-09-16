@@ -1,6 +1,19 @@
 -- ZENITH Core foundation reconciliation: schema shape.
 set lock_timeout = '5s';
 
+-- Legacy RLS policies/functions reference columns that this forward migration removes.
+-- Retire them before destructive shape cleanup; 0004 recreates the canonical security contract.
+drop policy if exists organisations_same_tenant on core.organisations;
+drop policy if exists identities_same_tenant on core.identities;
+drop policy if exists resources_read_policy on core.resources;
+drop policy if exists resources_insert_policy on core.resources;
+drop policy if exists resources_update_policy on core.resources;
+drop policy if exists resources_delete_policy on core.resources;
+drop policy if exists memberships_read_policy on core.resource_memberships;
+drop policy if exists policy_obligations_read_policy on core.policy_obligations;
+drop function if exists core.can_read_resource(core.resources);
+drop function if exists core.can_write_resource(core.resources);
+
 drop view if exists core.public_resources;
 
 do $$
