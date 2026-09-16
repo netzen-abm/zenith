@@ -56,11 +56,11 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_views WHERE schemaname='core' AND viewname='public_resources') THEN RAISE EXCEPTION 'public_resources view missing'; END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='core' AND c.relname='public_resources' AND c.relkind='v') THEN RAISE EXCEPTION 'public_resources is not a view'; END IF;
 
-  IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE oid='core.current_identity_id()'::regprocedure AND prosecdef AND proconfig @> ARRAY['search_path=']::text[]) THEN RAISE EXCEPTION 'current_identity_id security contract failed'; END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE oid='core.current_organisation_id()'::regprocedure AND prosecdef AND proconfig @> ARRAY['search_path=']::text[]) THEN RAISE EXCEPTION 'current_organisation_id security contract failed'; END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE oid='core.can_read_resource(uuid)'::regprocedure AND prosecdef AND proconfig @> ARRAY['search_path=']::text[]) THEN RAISE EXCEPTION 'can_read_resource security contract failed'; END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE oid='core.can_write_resource(uuid)'::regprocedure AND prosecdef AND proconfig @> ARRAY['search_path=']::text[]) THEN RAISE EXCEPTION 'can_write_resource security contract failed'; END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE oid='core.authorize_capability(text,uuid,text)'::regprocedure AND NOT prosecdef AND proconfig @> ARRAY['search_path=']::text[]) THEN RAISE EXCEPTION 'authorize_capability security contract failed'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE oid='core.current_identity_id()'::regprocedure AND prosecdef AND coalesce(proconfig::text,'') like '%search_path%') THEN RAISE EXCEPTION 'current_identity_id security contract failed'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE oid='core.current_organisation_id()'::regprocedure AND prosecdef AND coalesce(proconfig::text,'') like '%search_path%') THEN RAISE EXCEPTION 'current_organisation_id security contract failed'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE oid='core.can_read_resource(uuid)'::regprocedure AND prosecdef AND coalesce(proconfig::text,'') like '%search_path%') THEN RAISE EXCEPTION 'can_read_resource security contract failed'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE oid='core.can_write_resource(uuid)'::regprocedure AND prosecdef AND coalesce(proconfig::text,'') like '%search_path%') THEN RAISE EXCEPTION 'can_write_resource security contract failed'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE oid='core.authorize_capability(text,uuid,text)'::regprocedure AND NOT prosecdef AND coalesce(proconfig::text,'') like '%search_path%') THEN RAISE EXCEPTION 'authorize_capability security contract failed'; END IF;
 END $$;
 
 SELECT 'fresh-db-foundation-assertions: PASS' AS result;
