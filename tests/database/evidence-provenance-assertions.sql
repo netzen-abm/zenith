@@ -3,12 +3,9 @@
 DO $$
 DECLARE v_count integer;
 BEGIN
-  FOREACH v_count IN ARRAY ARRAY[0] LOOP NULL; END LOOP;
-  FOR v_count IN SELECT count(*) FROM information_schema.tables
-    WHERE table_schema='core' AND table_name IN ('sources','evidence','observations','measurements','claims','claim_evidence','interpretations','hypotheses','provenance_links')
-  LOOP
-    IF v_count <> 9 THEN RAISE EXCEPTION 'evidence/provenance table count mismatch: %', v_count; END IF;
-  END LOOP;
+  SELECT count(*) INTO v_count FROM information_schema.tables
+  WHERE table_schema='core' AND table_name IN ('sources','evidence','observations','measurements','claims','claim_evidence','interpretations','hypotheses','provenance_links');
+  IF v_count <> 9 THEN RAISE EXCEPTION 'evidence/provenance table count mismatch: %', v_count; END IF;
 
   SELECT count(*) INTO v_count FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
   WHERE n.nspname='core' AND c.relname IN ('sources','evidence','observations','measurements','claims','claim_evidence','interpretations','hypotheses','provenance_links') AND c.relrowsecurity;
