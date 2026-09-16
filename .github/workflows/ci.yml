@@ -118,3 +118,40 @@ jobs:
         run: |
           set -euo pipefail
           find core/database/migrations -maxdepth 1 -type f -name '*.sql' | sort | grep -q .
+
+  fresh-db-reconciliation:
+    name: Fresh DB reconciliation
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_DB: zenith
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d zenith"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Execute fresh migration reconciliation
+        shell: bash
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/zenith
+        run: |
+          set -euo pipefail
+          chmod +x tests/database/fresh-db-reconciliation.sh
+          tests/database/fresh-db-reconciliation.sh
