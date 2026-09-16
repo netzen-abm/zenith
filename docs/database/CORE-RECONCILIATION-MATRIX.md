@@ -8,25 +8,31 @@
 
 This matrix converts the verified live contract into bounded repository reconciliation units. An object is reconciled only when its definition, constraints, material indexes, RLS, grants, function security context, triggers, views, and sensitive-data behavior are represented or explicitly classified.
 
-The live project contains 14 applied migration generations. Repository `main` now contains foundation reconciliation through `0004`; evidence/provenance is being reconciled in PR #16. The repository is not yet a complete reproduction of the live contract.
+The live project contains 14 applied migration generations. Repository `main` now contains foundation reconciliation through `0004`, evidence/provenance through `0005`, and Knowledge Graph reconciliation through `0006` on the current PR branch. The repository is not yet a complete reproduction of the live contract.
 
 ## Reconciliation units
 
 | Unit | Live objects | Repository status | Action | Gate |
 |---|---|---|---|---|
 | Foundation | organisations, identities, resources, resource_memberships, policy_obligations | Reconciled in `0003`/`0004`; CI fresh-db gate green | Verify against live contract | Authenticated runtime verification remains open |
-| Evidence | sources, evidence, observations, measurements, claims, claim_evidence, interpretations, hypotheses, provenance_links | Implemented in PR #16 | Merge only after fresh DB + exact contract review | Fresh DB + dependency + RLS verification |
-| Knowledge graph | entity_relationships, entity_assertions | Missing from committed migrations | Forward reconciliation migration | Relationship visibility + tenant isolation |
+| Evidence | sources, evidence, observations, measurements, claims, claim_evidence, interpretations, hypotheses, provenance_links | Reconciled in `0005`; CI fresh-db gate green | Verify against live contract | Authenticated runtime verification remains open |
+| Knowledge graph | entity_relationships, entity_assertions | Reconciled in `0006` on current PR | Merge only after fresh DB + exact contract review | Relationship visibility + tenant isolation |
 | Space/time | spatial_representations, resource_spatial_relations, time_spans, resource_time_spans | Missing from committed migrations; PostGIS platform dependency | Forward reconciliation; preserve platform-managed PostGIS | Spatial safety + extension review |
 | Research | research_questions, research_projects, research_project_questions, datasets, research_project_datasets, methods, research_project_methods, research_runs, research_outputs | Missing from committed migrations | Forward reconciliation migration | Research RLS + dependency verification |
 | Audit/security | audit.events, audit.kernel_gate_results, authorization/current-context helpers, canonical capability boundary | Partial | Reconcile exact security contract | ACL + security-definer + auth tests |
-| Public projections | six `core.public_*` views | Foundation public resource view reconciled; five domain projections remain | Reconcile exact view definitions/options/privileges | Anonymous safety + sensitive-coordinate tests |
+| Public projections | six `core.public_*` views | Foundation and Knowledge Graph projections reconciled; four domain projections remain | Reconcile exact view definitions/options/privileges | Anonymous safety + sensitive-coordinate tests |
+
+## Knowledge Graph boundary
+
+The Knowledge Graph unit models a directed relationship between two protected resources, with a predicate, epistemic status, optional confidence and temporal validity, plus optional evidence and asserting identity. Relationship assertions separately record support, contradiction, qualification, derivation, or contextualization and may reference evidence or source records.
+
+Relationship visibility requires both subject and object resources to be readable through the canonical resource authorization boundary. Assertions inherit visibility from the relationship subject. No write RLS policies are invented because the verified live contract exposes authenticated SELECT policies only.
+
+The public relationship projection intentionally excludes organisation identity, assertion payload, asserting identity, evidence linkage, and assertion rows. It exposes relationship identifiers and public subject/object resource identifiers only when both endpoint resources are public.
 
 ## Evidence/provenance boundary
 
 The evidence unit preserves the canonical epistemic chain: source → evidence → observation/measurement → claim → interpretation/hypothesis, with explicit claim/evidence support or contradiction and provenance links for entity-to-entity lineage.
-
-The live contract uses text-based epistemic status and sensitivity checks, JSONB payloads for source citation/rights, evidence locators, observation methods/uncertainty, measurement methods/uncertainty, interpretation methods, and provenance activity. No write RLS policies are invented by the reconciliation because the verified live contract exposes authenticated SELECT policies only.
 
 ## Security contract
 
