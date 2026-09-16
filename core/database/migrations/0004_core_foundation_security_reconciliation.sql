@@ -23,32 +23,34 @@ create or replace function core.current_identity_id()
 returns uuid language sql stable security definer set search_path = '' as $$
   select i.id from core.identities i where i.auth_user_id = (select auth.uid()) limit 1
 $$;
-
 create or replace function core.current_organisation_id()
 returns uuid language sql stable security definer set search_path = '' as $$
-  select r.organisation_id from core.resources r
-  join core.resource_memberships rm on rm.resource_id = r.id
-  where rm.identity_id = core.current_identity_id()
-  order by r.created_at asc limit 1
+  select r.organisation_id from core.resources r join core.resource_memberships rm on rm.resource_id = r.id
+  where rm.identity_id = core.current_identity_id() order by r.created_at asc limit 1
 $$;
-
 create or replace function core.can_read_resource(p_resource_id uuid)
 returns boolean language sql stable security definer set search_path = '' as $$
-  select exists (
-    select 1 from core.resources r
-    left join core.resource_memberships rm on rm.resource_id = r.id and rm.identity_id = core.current_identity_id()
-    where r.id = p_resource_id and (r.sensitivity = 'public' or rm.membership_role in ('viewer','editor','owner'))
-  )
+  select exists (select 1 from core.resources r left join core.resource_memberships rm
+    on rm.resource_id = r.id and rm.identity_id = core.current_identity_id()
+    where r.id = p_resource_id and (r.sensitivity = 'public' or rm.membership_role in ('viewer','editor','owner')))
 $$;
-
 create or replace function core.can_write_resource(p_resource_id uuid)
 returns boolean language sql stable security definer set search_path = '' as $$
-  select exists (
-    select 1 from core.resource_memberships rm
+  select exists (select 1 from core.resource_memberships rm
     where rm.resource_id = p_resource_id and rm.identity_id = core.current_identity_id()
-      and rm.membership_role in ('editor','owner')
-  )
+      and rm.membership_role in ('editor','owner'))
 $$;
+
+create or replace function core.touch_updated_at()
+returns trigger language plpgsql set search_path = '' as $$
+begin
+  new.updated_at = now();
+  return new;
+end
+$$;
+drop trigger if exists resources_touch_updated_at on core.resources;
+create trigger resources_touch_updated_at before update on core.resources
+for each row execute function core.touch_updated_at();
 
 alter table core.organisations enable row level security;
 alter table core.identities enable row level security;
