@@ -83,3 +83,10 @@ create index if not exists resources_geom_idx on core.resources using gist(geom)
 
 comment on column core.resources.epistemic_status is 'Epistemic status: observed, documented, derived, interpreted, hypothesized, traditional_oral, contested_disputed, or unknown.';
 comment on column core.resources.sensitivity is 'Disclosure sensitivity: public, controlled, or sensitive.';
+
+create view core.public_resources with (security_invoker=true) as
+select id, organisation_id, resource_type, title, epistemic_status, sensitivity,
+       created_at, updated_at,
+       case when sensitivity='public' then geom else null::geometry end as geom
+from core.resources where sensitivity='public';
+grant select on core.public_resources to anon, authenticated;
