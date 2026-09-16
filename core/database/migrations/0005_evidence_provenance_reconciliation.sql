@@ -1,33 +1,28 @@
 -- ZENITH Core evidence/provenance reconciliation: schema contract.
 set lock_timeout = '5s';
 
+drop policy if exists sources_read on core.sources;
+drop policy if exists evidence_read on core.evidence;
+drop policy if exists observations_read on core.observations;
+drop policy if exists measurements_read on core.measurements;
+drop policy if exists claims_read on core.claims;
+drop policy if exists claim_evidence_read on core.claim_evidence;
+drop policy if exists interpretations_read on core.interpretations;
+drop policy if exists hypotheses_read on core.hypotheses;
+drop policy if exists provenance_read on core.provenance_links;
+
 create table if not exists core.sources (
-  id uuid primary key default gen_random_uuid(),
-  organisation_id uuid,
-  source_type text not null,
-  title text not null,
-  citation jsonb not null default '{}'::jsonb,
-  external_identifier text,
-  canonical_uri text,
-  rights jsonb not null default '{}'::jsonb,
-  sensitivity text not null default 'public',
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
+  id uuid primary key default gen_random_uuid(), organisation_id uuid, source_type text not null, title text not null,
+  citation jsonb not null default '{}'::jsonb, external_identifier text, canonical_uri text,
+  rights jsonb not null default '{}'::jsonb, sensitivity text not null default 'public',
+  created_at timestamptz not null default now(), updated_at timestamptz not null default now(),
   constraint sources_organisation_id_fkey foreign key (organisation_id) references core.organisations(id) on delete restrict,
   constraint sources_sensitivity_check check (sensitivity = any (array['public','controlled','sensitive']))
 );
-
 create table if not exists core.evidence (
-  id uuid primary key default gen_random_uuid(),
-  source_id uuid not null,
-  resource_id uuid,
-  evidence_type text not null,
-  locator jsonb not null default '{}'::jsonb,
-  excerpt text,
-  evidence_payload jsonb not null default '{}'::jsonb,
-  epistemic_status text not null default 'documented',
-  sensitivity text not null default 'public',
-  created_by uuid,
+  id uuid primary key default gen_random_uuid(), source_id uuid not null, resource_id uuid, evidence_type text not null,
+  locator jsonb not null default '{}'::jsonb, excerpt text, evidence_payload jsonb not null default '{}'::jsonb,
+  epistemic_status text not null default 'documented', sensitivity text not null default 'public', created_by uuid,
   created_at timestamptz not null default now(),
   constraint evidence_source_id_fkey foreign key (source_id) references core.sources(id) on delete restrict,
   constraint evidence_resource_id_fkey foreign key (resource_id) references core.resources(id) on delete set null,
@@ -35,98 +30,53 @@ create table if not exists core.evidence (
   constraint evidence_epistemic_status_check check (epistemic_status = any (array['observed','documented','derived','interpreted','hypothesized','traditional_oral','contested_disputed','unknown'])),
   constraint evidence_sensitivity_check check (sensitivity = any (array['public','controlled','sensitive']))
 );
-
 create table if not exists core.observations (
-  id uuid primary key default gen_random_uuid(),
-  evidence_id uuid not null,
-  observation_type text not null,
-  value jsonb not null,
-  method jsonb not null default '{}'::jsonb,
-  observed_at timestamptz,
-  observer_identity_id uuid,
-  uncertainty jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default now(),
+  id uuid primary key default gen_random_uuid(), evidence_id uuid not null, observation_type text not null, value jsonb not null,
+  method jsonb not null default '{}'::jsonb, observed_at timestamptz, observer_identity_id uuid,
+  uncertainty jsonb not null default '{}'::jsonb, created_at timestamptz not null default now(),
   constraint observations_evidence_id_fkey foreign key (evidence_id) references core.evidence(id) on delete cascade,
   constraint observations_observer_identity_id_fkey foreign key (observer_identity_id) references core.identities(id) on delete set null
 );
-
 create table if not exists core.measurements (
-  id uuid primary key default gen_random_uuid(),
-  observation_id uuid not null,
-  quantity numeric,
-  unit text,
-  value jsonb,
-  method jsonb not null default '{}'::jsonb,
-  uncertainty jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default now(),
+  id uuid primary key default gen_random_uuid(), observation_id uuid not null, quantity numeric, unit text, value jsonb,
+  method jsonb not null default '{}'::jsonb, uncertainty jsonb not null default '{}'::jsonb, created_at timestamptz not null default now(),
   constraint measurements_observation_id_fkey foreign key (observation_id) references core.observations(id) on delete cascade
 );
-
 create table if not exists core.claims (
-  id uuid primary key default gen_random_uuid(),
-  resource_id uuid,
-  claim_text text not null,
-  epistemic_status text not null,
-  confidence numeric,
-  created_by uuid,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
+  id uuid primary key default gen_random_uuid(), resource_id uuid, claim_text text not null, epistemic_status text not null,
+  confidence numeric, created_by uuid, created_at timestamptz not null default now(), updated_at timestamptz not null default now(),
   constraint claims_resource_id_fkey foreign key (resource_id) references core.resources(id) on delete set null,
   constraint claims_created_by_fkey foreign key (created_by) references core.identities(id) on delete set null,
   constraint claims_epistemic_status_check check (epistemic_status = any (array['observed','documented','derived','interpreted','hypothesized','traditional_oral','contested_disputed','unknown'])),
   constraint claims_confidence_check check (confidence is null or (confidence >= 0 and confidence <= 1))
 );
-
 create table if not exists core.claim_evidence (
-  claim_id uuid not null,
-  evidence_id uuid not null,
-  support_type text not null,
-  rationale text,
-  created_at timestamptz not null default now(),
+  claim_id uuid not null, evidence_id uuid not null, support_type text not null, rationale text, created_at timestamptz not null default now(),
   primary key (claim_id, evidence_id, support_type),
   constraint claim_evidence_claim_id_fkey foreign key (claim_id) references core.claims(id) on delete cascade,
   constraint claim_evidence_evidence_id_fkey foreign key (evidence_id) references core.evidence(id) on delete cascade,
   constraint claim_evidence_support_type_check check (support_type = any (array['supports','contradicts','contextualizes','derives_from']))
 );
-
 create table if not exists core.interpretations (
-  id uuid primary key default gen_random_uuid(),
-  claim_id uuid not null,
-  interpretation_text text not null,
-  method jsonb not null default '{}'::jsonb,
-  epistemic_status text not null default 'interpreted',
-  confidence numeric,
-  created_by uuid,
+  id uuid primary key default gen_random_uuid(), claim_id uuid not null, interpretation_text text not null,
+  method jsonb not null default '{}'::jsonb, epistemic_status text not null default 'interpreted', confidence numeric, created_by uuid,
   created_at timestamptz not null default now(),
   constraint interpretations_claim_id_fkey foreign key (claim_id) references core.claims(id) on delete cascade,
   constraint interpretations_created_by_fkey foreign key (created_by) references core.identities(id) on delete set null,
   constraint interpretations_epistemic_status_check check (epistemic_status = any (array['interpreted','hypothesized','contested_disputed','unknown'])),
   constraint interpretations_confidence_check check (confidence is null or (confidence >= 0 and confidence <= 1))
 );
-
 create table if not exists core.hypotheses (
-  id uuid primary key default gen_random_uuid(),
-  research_question_id uuid,
-  hypothesis_text text not null,
-  epistemic_status text not null default 'hypothesized',
-  confidence numeric,
-  created_by uuid,
-  created_at timestamptz not null default now(),
+  id uuid primary key default gen_random_uuid(), research_question_id uuid, hypothesis_text text not null,
+  epistemic_status text not null default 'hypothesized', confidence numeric, created_by uuid, created_at timestamptz not null default now(),
   constraint hypotheses_created_by_fkey foreign key (created_by) references core.identities(id) on delete set null,
   constraint hypotheses_epistemic_status_check check (epistemic_status = any (array['hypothesized','contested_disputed','unknown'])),
   constraint hypotheses_confidence_check check (confidence is null or (confidence >= 0 and confidence <= 1))
 );
-
 create table if not exists core.provenance_links (
-  id uuid primary key default gen_random_uuid(),
-  from_entity_type text not null,
-  from_entity_id uuid not null,
-  relation_type text not null,
-  to_entity_type text not null,
-  to_entity_id uuid not null,
-  agent_identity_id uuid,
-  activity jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default now(),
+  id uuid primary key default gen_random_uuid(), from_entity_type text not null, from_entity_id uuid not null,
+  relation_type text not null, to_entity_type text not null, to_entity_id uuid not null, agent_identity_id uuid,
+  activity jsonb not null default '{}'::jsonb, created_at timestamptz not null default now(),
   constraint provenance_links_agent_identity_id_fkey foreign key (agent_identity_id) references core.identities(id) on delete set null
 );
 
@@ -151,9 +101,7 @@ alter table core.interpretations enable row level security;
 alter table core.hypotheses enable row level security;
 alter table core.provenance_links enable row level security;
 
-create policy sources_read on core.sources for select to authenticated using (
-  sensitivity = 'public' or organisation_id = core.current_organisation_id()
-);
+create policy sources_read on core.sources for select to authenticated using (sensitivity = 'public' or organisation_id = core.current_organisation_id());
 create policy evidence_read on core.evidence for select to authenticated using (
   sensitivity = 'public' or exists (select 1 from core.resources r where r.id = evidence.resource_id and core.can_read_resource(r.id))
   or exists (select 1 from core.sources s where s.id = evidence.source_id and s.organisation_id = core.current_organisation_id())
