@@ -1,6 +1,6 @@
 # Live Core Contract Inventory
 
-**Date:** 2026-09-15  
+**Date:** 2026-09-16  
 **Project:** ZENITH / Past Intelligence Core  
 **Purpose:** Evidence baseline for migration/schema convergence.
 
@@ -58,7 +58,17 @@ The live authorization context resolves identity from `auth.uid()` through `core
 
 These differences must be reconciled explicitly. They must not be hidden by `IF NOT EXISTS` recreation patterns.
 
-## 4. Authorization contract
+## 4. Live structural constraints
+
+The live contract has primary keys across all listed base tables, composite primary keys on association tables, unique constraints on `core.identities.auth_user_id` and `core.organisations.slug`, and foreign keys enforcing the evidence/observation/claim/relationship/research/resource graph. Important checks constrain epistemic status, sensitivity, confidence ranges, relationship self-links, relationship validity ordering, spatial precision/type, time precision/order, research status, and association roles.
+
+Foreign-key delete behavior is part of the effective contract and must be preserved during reconciliation, including `CASCADE`, `RESTRICT`, and `SET NULL` semantics where currently deployed.
+
+## 5. Live indexes
+
+Verified indexes include primary/unique indexes, evidence/resource/source relationship indexes, organisation indexes, provenance from/to indexes, spatial GiST indexes on `core.resources.geom` and `core.spatial_representations.geom`, and time-range indexes on `core.time_spans`. The live index set must be reproduced deliberately; performance-advisor findings must not be treated as permission to remove or add indexes blindly.
+
+## 6. Authorization contract
 
 Live helpers include:
 
@@ -72,25 +82,13 @@ The authorization helpers use an empty `search_path`. The capability boundary is
 
 The canonical capability boundary permits defined read/discovery actions and defined write actions, and denies unknown capability families rather than failing open.
 
-## 5. Live RLS policy domains
+## 7. Live RLS policy contract
 
-Verified policy coverage includes:
+The live Core exposes SELECT policies for authenticated users across the research, evidence, provenance, spatial/time, resource, membership, and knowledge-graph domains. `core.resources` additionally has a dedicated anonymous public-read policy restricted to `sensitivity = 'public'`.
 
-- tenant/member reads for organisations and identities
-- resource public/authenticated reads
-- membership access
-- source/evidence access
-- observation/measurement access
-- claim/interpretation/hypothesis access
-- relationship and assertion access
-- provenance access
-- spatial/time access
-- research project/question/run/output access
-- audit event access
+Policy predicates delegate protected-resource decisions to the canonical authorization helpers. Source access uses public sensitivity or the current organisation; identity access is self-only; audit-event access is identity-scoped. The exact policy definitions are the security contract and must be preserved, not approximated by table-level grants.
 
-No reconciliation migration may weaken these policies merely to obtain migration success.
-
-## 6. Public projections
+## 8. Public projections
 
 Verified public views include:
 
@@ -103,26 +101,40 @@ Verified public views include:
 
 Public resource projection exposes only public resources. Spatial representations expose geometry only when the resource is public and precision is generalized/regional/unknown. Sensitive resources do not receive precise geometry through the public projections.
 
-## 7. Required extraction before reconciliation SQL
+## 9. Grants and execution surface
+
+The live base tables are owned by `postgres`; authenticated has SELECT on Core tables and `audit.events`, while anonymous has SELECT on `core.resources` and the public projection views. `audit.kernel_gate_results` has no authenticated table grant in the extracted ACL. Public projection views grant SELECT to `anon` and `authenticated`.
+
+The four authorization helpers inspected are owned by `postgres`; the three authorization decision/context helpers are `SECURITY DEFINER` with an empty `search_path`, while `authorize_capability` is `SECURITY INVOKER`. Exact function ACLs remain a closure item because ownership and function execution privileges must be captured separately from table grants.
+
+## 10. Triggers
+
+Five user-defined triggers were verified: updated-at triggers on `core.claims`, `core.entity_relationships`, `core.research_projects`, `core.research_questions`, and `core.resources`. Their trigger functions use an empty `search_path` and are `SECURITY INVOKER`.
+
+## 11. Types and extensions
+
+No user-defined enum/domain/composite types were identified in `core` or `audit`; PostgreSQL's table row composite types appeared in the catalog query and are not independent application types.
+
+Installed extensions relevant to the Core include PostGIS 3.3.7 in `public`, pgcrypto 1.3 and uuid-ossp 1.1 in `extensions`, plus the Supabase-managed extension inventory. The full extension inventory is platform-level state rather than an instruction to recreate every available extension in ZENITH migrations. PostGIS remains a documented public-schema platform residual pending separate hardening decisions.
+
+## 12. Remaining exact extraction
 
 The following still require exact repository-grade extraction:
 
-- primary/unique/check constraints and foreign keys
-- complete index definitions
-- all table and sequence grants
-- function signatures, definitions, ownership and privileges
-- trigger definitions
-- enum/custom type definitions
-- extension versions and privileges
-- complete view definitions and view privileges
-- complete RLS policy definitions
-- relevant PostGIS/public-schema security state
+- function ACLs/EXECUTE grants and ownership for every relevant function
+- complete view definitions/options and view privileges
+- sequence privileges and default privileges
+- schema privileges and ownership
+- complete PostGIS/public-schema security state, including the known advisor residuals
+- comments and other non-object behavioral metadata where material
 
-## 8. Reconciliation rule
+## 13. Reconciliation rule
 
 Forward migrations must reproduce effective live behavior, not merely object names. Historical migrations remain intact. New reconciliation migrations must be bounded, review-gated, and subject to the 190-line source governance rule where splitting preserves atomicity.
 
-## 9. Closure criteria
+Do not apply speculative live DDL. First complete the contract extraction, map each live generation to repository history or an explicit reconciliation artifact, then validate the result on a fresh non-production database.
+
+## 14. Closure criteria
 
 Migration parity is closed only after:
 
