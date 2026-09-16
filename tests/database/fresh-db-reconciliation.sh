@@ -59,11 +59,17 @@ done
 snapshot_dir="$ROOT_DIR/.tmp/fresh-db-reconciliation"
 rm -rf "$snapshot_dir"
 mkdir -p "$snapshot_dir"
-"${PSQL[@]}" -Atc "select version()" > "$snapshot_dir/server-version.txt"
-"${PSQL[@]}" -Atc "select extname || ':' || extversion from pg_extension where extname in ('postgis','pgcrypto') order by 1" > "$snapshot_dir/extensions.txt"
-"${PSQL[@]}" -Atc "select n.nspname || '.' || c.relname || ':' || c.relkind::text from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname in ('core','audit') and c.relkind in ('r','v','m','f','p') order by 1,2" > "$snapshot_dir/relations.txt"
-"${PSQL[@]}" -Atc "select n.nspname || '.' || p.proname || '(' || pg_get_function_identity_arguments(p.oid) || '):' || p.prosecdef || ':' || coalesce(p.proconfig::text,'') from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('core','audit') order by 1,2,3" > "$snapshot_dir/functions.txt"
-"${PSQL[@]}" -Atc "select schemaname || '.' || tablename || ':' || policyname || ':' || coalesce(cmd,'') || ':' || coalesce(qual,'') || ':' || coalesce(with_check,'') from pg_policies where schemaname in ('core','audit') order by 1,2,3" > "$snapshot_dir/rls-policies.txt"
-"${PSQL[@]}" -Atc "select n.nspname || '.' || c.relname || ':' || a.attname || ':' || pg_catalog.format_type(a.atttypid,a.atttypmod) || ':' || a.attnotnull from pg_attribute a join pg_class c on c.oid=a.attrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname in ('core','audit') and c.relkind in ('r','v','m') and a.attnum > 0 and not a.attisdropped order by 1,2,3" > "$snapshot_dir/columns.txt"
+run_snapshot() {
+  local name="$1"
+  local query="$2"
+  echo "==> snapshot: $name"
+  "${PSQL[@]}" -Atc "$query" > "$snapshot_dir/$name"
+}
+run_snapshot server-version "select version()"
+run_snapshot extensions "select format('%s:%s', extname, extversion) from pg_extension where extname in ('postgis','pgcrypto') order by 1"
+run_snapshot relations "select format('%s.%s:%s', n.nspname, c.relname, c.relkind::text) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname in ('core','audit') and c.relkind in ('r','v','m','f','p') order by 1,2"
+run_snapshot functions "select format('%s.%s(%s):%s:%s', n.nspname, p.proname, pg_get_function_identity_arguments(p.oid), p.prosecdef::text, coalesce(p.proconfig::text,'')) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('core','audit') order by 1,2,3"
+run_snapshot rls-policies "select format('%s.%s:%s:%s:%s', schemaname, tablename, policyname, coalesce(cmd,''), coalesce(qual,'') || ':' || coalesce(with_check,'')) from pg_policies where schemaname in ('core','audit') order by 1,2,3"
+run_snapshot columns "select format('%s.%s:%s:%s:%s', n.nspname, c.relname, a.attname, pg_catalog.format_type(a.atttypid,a.atttypmod), a.attnotnull::text) from pg_attribute a join pg_class c on c.oid=a.attrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname in ('core','audit') and c.relkind in ('r','v','m') and a.attnum > 0 and not a.attisdropped order by 1,2,3"
 cat "$snapshot_dir"/*.txt
 printf '\nFresh repository database reproduction and foundation contract assertions completed.\n'
