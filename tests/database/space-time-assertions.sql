@@ -32,21 +32,22 @@ BEGIN
     'resource_time_spans_time_idx','resource_time_spans_evidence_idx');
   IF v_count <> 8 THEN RAISE EXCEPTION 'space/time index count mismatch: %', v_count; END IF;
 
-  FOREACH v_count IN ARRAY ARRAY[1,2,3] LOOP NULL; END LOOP;
-  IF NOT EXISTS (SELECT 1 FROM pg_views WHERE schemaname='core' AND viewname='public_spatial_representations') THEN RAISE EXCEPTION 'public_spatial_representations missing'; END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_views WHERE schemaname='core' AND viewname='public_resource_spatial_relations') THEN RAISE EXCEPTION 'public_resource_spatial_relations missing'; END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_views WHERE schemaname='core' AND viewname='public_resource_time_spans') THEN RAISE EXCEPTION 'public_resource_time_spans missing'; END IF;
+  SELECT count(*) INTO v_count FROM pg_views WHERE schemaname='core' AND viewname IN (
+    'public_spatial_representations','public_resource_spatial_relations','public_resource_time_spans');
+  IF v_count <> 3 THEN RAISE EXCEPTION 'space/time public view count mismatch: %', v_count; END IF;
 
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='core' AND tablename='spatial_representations' AND policyname='spatial_representations_read') THEN RAISE EXCEPTION 'spatial read policy missing'; END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='core' AND tablename='resource_spatial_relations' AND policyname='resource spatial read policy missing') THEN NULL; END IF;
+  SELECT count(*) INTO v_count FROM pg_policies
+  WHERE schemaname='core' AND tablename IN ('spatial_representations','resource_spatial_relations','time_spans','resource_time_spans')
+    AND policyname IN ('spatial_representations_read','resource_spatial_relations_read','time_spans_read','resource_time_spans_read');
+  IF v_count <> 4 THEN RAISE EXCEPTION 'space/time named policy count mismatch: %', v_count; END IF;
 END $$;
 
--- Public projection must not expose exact geometry.
+-- Public projection must retain the precision gate around geometry.
 DO $$
 DECLARE v_def text;
 BEGIN
   SELECT definition INTO v_def FROM pg_views WHERE schemaname='core' AND viewname='public_spatial_representations';
-  IF v_def IS NULL OR position('sr.geom' in v_def) = 0 OR position('precision_level' in v_def) = 0 THEN
+  IF v_def IS NULL OR position('sr.geom' in v_def) = 0 OR position('generalized' in v_def) = 0 OR position('regional' in v_def) = 0 THEN
     RAISE EXCEPTION 'public spatial projection does not contain the required precision-gated geometry contract';
   END IF;
 END $$;
