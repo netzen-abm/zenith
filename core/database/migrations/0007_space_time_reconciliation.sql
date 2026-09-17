@@ -1,6 +1,27 @@
 -- ZENITH Core space/time reconciliation: spatial and temporal contract.
 set lock_timeout = '5s';
 
+-- Existing live tables are data-bearing. Never silently accept an incompatible legacy shape.
+DO $$
+DECLARE t text; required text[]; col text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['spatial_representations','resource_spatial_relations','time_spans','resource_time_spans'] LOOP
+    IF to_regclass('core.' || t) IS NOT NULL THEN
+      required := CASE t
+        WHEN 'spatial_representations' THEN ARRAY['id','resource_id','representation_type','geom','precision_level','coordinate_confidence','source_evidence_id','created_at']
+        WHEN 'resource_spatial_relations' THEN ARRAY['subject_resource_id','object_resource_id','relation_type','evidence_id','epistemic_status','confidence']
+        WHEN 'time_spans' THEN ARRAY['id','organisation_id','label','start_at','end_at','start_precision','end_precision','chronology_system','uncertainty','created_at']
+        ELSE ARRAY['resource_id','time_span_id','relation_type','evidence_id','epistemic_status','confidence']
+      END;
+      FOREACH col IN ARRAY required LOOP
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='core' AND table_name=t AND column_name=col) THEN
+          RAISE EXCEPTION 'space/time reconciliation refused: existing core.% is missing required column %', t, col;
+        END IF;
+      END LOOP;
+    END IF;
+  END LOOP;
+END $$;
+
 drop policy if exists spatial_representations_read on core.spatial_representations;
 drop policy if exists resource_spatial_relations_read on core.resource_spatial_relations;
 drop policy if exists time_spans_read on core.time_spans;
