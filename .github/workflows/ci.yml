@@ -15,30 +15,22 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
       - name: Validate required architecture paths
         shell: bash
         run: |
           set -euo pipefail
-          for path in README.md core/database docs tests; do
-            test -e "$path"
-          done
-
+          for path in README.md core/database docs tests; do test -e "$path"; done
       - name: Validate authorization boundary when present
         shell: bash
         run: |
           set -euo pipefail
           file="core/database/migrations/0002_capability_policy_boundary.sql"
-          if [ ! -f "$file" ]; then
-            echo "Authorization-boundary migration is not yet present on this branch; dedicated authorization validation remains gated by its implementation PR."
-            exit 0
-          fi
+          if [ ! -f "$file" ]; then exit 0; fi
           grep -q "core.authorize_capability" "$file"
           grep -q "security invoker" "$file"
           grep -q "set search_path = ''" "$file"
           grep -q "revoke execute" "$file"
           grep -q "grant execute.*authenticated" "$file"
-
       - name: Validate architecture governance
         shell: bash
         run: |
@@ -49,17 +41,13 @@ jobs:
           grep -qi "Rust" "$file"
           grep -qi "Python" "$file"
           grep -qi "ADR" "$file"
-
       - name: Validate authorization ADR when boundary is present
         shell: bash
         run: |
           set -euo pipefail
           migration="core/database/migrations/0002_capability_policy_boundary.sql"
           adr="docs/adr/0001-canonical-capability-authorization-boundary.md"
-          if [ ! -f "$migration" ]; then
-            echo "Authorization implementation is not yet present; authorization ADR validation remains gated by its implementation PR."
-            exit 0
-          fi
+          if [ ! -f "$migration" ]; then exit 0; fi
           test -f "$adr"
           grep -qi "authorization" "$adr"
           grep -qi "RLS" "$adr"
@@ -71,7 +59,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
       - name: Enforce 190-line source limit
         shell: bash
         run: |
@@ -79,19 +66,14 @@ jobs:
           max_lines=190
           failed=0
           while IFS= read -r -d '' file; do
-            case "$file" in
-              */vendor/*|*/generated/*|*/dist/*|*/build/*|*/coverage/*) continue ;;
-            esac
+            case "$file" in */vendor/*|*/generated/*|*/dist/*|*/build/*|*/coverage/*) continue ;; esac
             lines=$(wc -l < "$file")
             if [ "$lines" -gt "$max_lines" ]; then
               printf 'ERROR: %s has %s lines; maximum is %s.\n' "$file" "$lines" "$max_lines"
               failed=1
             fi
           done < <(find . -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' -o -name '*.py' -o -name '*.rs' -o -name '*.ex' -o -name '*.exs' \) -not -path './.git/*' -print0)
-          if [ "$failed" -ne 0 ]; then
-            echo "Source files must remain within the 190-line maintainability limit. Split by responsibility rather than artificially truncating files."
-            exit 1
-          fi
+          if [ "$failed" -ne 0 ]; then exit 1; fi
 
   sql-static-security:
     name: SQL static security checks
@@ -99,20 +81,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
       - name: Reject unsafe authorization-boundary patterns when present
         shell: bash
         run: |
           set -euo pipefail
           file="core/database/migrations/0002_capability_policy_boundary.sql"
-          if [ ! -f "$file" ]; then
-            echo "Authorization-boundary migration is not yet present on this branch; no production SQL security assertion is applicable yet."
-            exit 0
-          fi
+          if [ ! -f "$file" ]; then exit 0; fi
           ! grep -Eqi "grant execute on function core\.authorize_capability.*public" "$file"
           grep -Eqi "security invoker" "$file"
           grep -Eqi "set search_path = ''" "$file"
-
       - name: Check migration files are present
         shell: bash
         run: |
@@ -129,24 +106,19 @@ jobs:
           POSTGRES_DB: zenith
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
+        ports: [5432:5432]
         options: >-
           --health-cmd "pg_isready -U postgres -d zenith"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 12
+          --health-interval 10s --health-timeout 5s --health-retries 12
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
       - name: Install PostgreSQL client
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y postgresql-client
-
       - name: Execute fresh migration reconciliation
         shell: bash
         env:
@@ -155,3 +127,14 @@ jobs:
           set -euo pipefail
           chmod +x tests/database/fresh-db-reconciliation.sh
           tests/database/fresh-db-reconciliation.sh
+
+  operation-queue-tests:
+    name: Operation queue tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Verify Node.js runtime
+        run: node --version
+      - name: Run operation queue invariant tests
+        run: node --experimental-strip-types packages/operation-queue/src/lifecycle.test.ts
