@@ -59,6 +59,7 @@ done
 "${PSQL[@]}" -f "$ROOT_DIR/tests/database/knowledge-graph-assertions.sql"
 "${PSQL[@]}" -f "$ROOT_DIR/tests/database/space-time-assertions.sql"
 "${PSQL[@]}" -f "$ROOT_DIR/tests/database/research-assertions.sql"
+"${PSQL[@]}" -f "$ROOT_DIR/tests/database/identity-organisation-context-assertions.sql"
 
 snapshot_dir="$ROOT_DIR/.tmp/fresh-db-reconciliation"
 rm -rf "$snapshot_dir"
@@ -80,4 +81,4 @@ for snapshot in "$snapshot_dir"/*; do
   printf '\n--- %s ---\n' "$(basename "$snapshot")"
   cat "$snapshot"
 done
-printf '\nFresh repository database reproduction, foundation, evidence/provenance, Knowledge Graph, Space/Time, and Research assertions completed.\n'
+printf '\nFresh repository database reproduction, foundation, evidence/provenance, Knowledge Graph, Space/Time, Research, and identity/organisation context assertions completed.\n'
