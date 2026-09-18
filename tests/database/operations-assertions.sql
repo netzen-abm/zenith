@@ -35,9 +35,9 @@ begin
     ('00000000-0000-0000-0000-0000000000a2','00000000-0000-0000-0000-0000000000a1','member'),
     ('00000000-0000-0000-0000-0000000000b2','00000000-0000-0000-0000-0000000000b1','member')
   on conflict (identity_id, organisation_id) do nothing;
-end $;
-
 end $$;
+
+set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',true);
 select set_config('app.organisation_id','00000000-0000-0000-0000-0000000000a1',true);
 -- Positive: tenant may create and read its own operation.
