@@ -2,7 +2,9 @@
 -- Seeds as the database owner, then exercises the public authenticated RLS boundary.
 begin;
 
-do $$
+insert into auth.users(id) values ('00000000-0000-0000-0000-0000000000a3'), ('00000000-0000-0000-0000-0000000000b3') on conflict do nothing;
+
+do $
 begin
   insert into core.organisations(id, name, slug)
   values
