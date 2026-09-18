@@ -40,8 +40,6 @@ end $;
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',true);
 select set_config('app.organisation_id','00000000-0000-0000-0000-0000000000a1',true);
-select set_config('role','authenticated',true);
-
 -- Positive: tenant may create and read its own operation.
 insert into operations.operations(
   id, organisation_id, identity_id, idempotency_key, action, purpose, expires_at
