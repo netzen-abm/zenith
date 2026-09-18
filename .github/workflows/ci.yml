@@ -156,11 +156,12 @@ jobs:
           chmod +x tests/database/fresh-db-reconciliation.sh
           tests/database/fresh-db-reconciliation.sh
 
-      - name: Run operations concurrency assertions
+      - name: Run operations concurrency assertions (mandatory)
         shell: bash
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/zenith
         run: |
           set -euo pipefail
           chmod +x tests/database/operations-concurrency.sh
+          echo "==> executing mandatory operations concurrency gate"
           tests/database/operations-concurrency.sh
