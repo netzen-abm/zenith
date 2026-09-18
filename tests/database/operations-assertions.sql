@@ -29,7 +29,13 @@ begin
     ('00000000-0000-0000-0000-0000000000d1','00000000-0000-0000-0000-0000000000a2','owner'),
     ('00000000-0000-0000-0000-0000000000d2','00000000-0000-0000-0000-0000000000b2','owner')
   on conflict (resource_id, identity_id) do nothing;
-end $$;
+
+  insert into core.identity_organisation_memberships(identity_id, organisation_id, membership_role)
+  values
+    ('00000000-0000-0000-0000-0000000000a2','00000000-0000-0000-0000-0000000000a1','member'),
+    ('00000000-0000-0000-0000-0000000000b2','00000000-0000-0000-0000-0000000000b1','member')
+  on conflict (identity_id, organisation_id) do nothing;
+end $;
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',true);
