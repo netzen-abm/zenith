@@ -1,133 +1,143 @@
 -- Executable assertions for the first persistent operations store.
--- Uses the repository's disposable Auth shim and transaction-scoped app context.
-set lock_timeout = '5s';
+-- Seeds as the database owner, then exercises the public authenticated RLS boundary.
+begin;
 
 do $$
-declare
-  v_org_a uuid := gen_random_uuid();
-  v_org_b uuid := gen_random_uuid();
-  v_id_a uuid := gen_random_uuid();
-  v_id_b uuid := gen_random_uuid();
-  v_op_a uuid := gen_random_uuid();
-  v_op_b uuid := gen_random_uuid();
-  v_count integer;
-  v_state text;
 begin
-  insert into core.organisations(id, name, slug) values
-    (v_org_a, 'Operations Test A', 'operations-test-a'),
-    (v_org_b, 'Operations Test B', 'operations-test-b');
+  insert into core.organisations(id, name, slug)
+  values
+    ('00000000-0000-0000-0000-0000000000a1', 'Operations Test A', 'operations-test-a'),
+    ('00000000-0000-0000-0000-0000000000b1', 'Operations Test B', 'operations-test-b')
+  on conflict (id) do nothing;
 
-  insert into core.identities(id, auth_user_id, display_name) values
-    (v_id_a, gen_random_uuid(), 'Operations Test Identity A'),
-    (v_id_b, gen_random_uuid(), 'Operations Test Identity B');
+  insert into core.identities(id, auth_user_id, display_name)
+  values
+    ('00000000-0000-0000-0000-0000000000a2', '00000000-0000-0000-0000-0000000000a3', 'Operations Test Identity A'),
+    ('00000000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-0000000000b3', 'Operations Test Identity B')
+  on conflict (id) do nothing;
 
   insert into core.identity_organisation_memberships(identity_id, organisation_id, membership_role)
   values
-    (v_id_a, v_org_a, 'member'),
-    (v_id_b, v_org_b, 'member');
+    ('00000000-0000-0000-0000-0000000000a2','00000000-0000-0000-0000-0000000000a1','member'),
+    ('00000000-0000-0000-0000-0000000000b2','00000000-0000-0000-0000-0000000000b1','member')
+  on conflict (identity_id, organisation_id) do nothing;
+end $$;
 
-  perform set_config('request.jwt.claim.sub', (select auth_user_id::text from core.identities where id=v_id_a), true);
-  perform set_config('role', 'authenticated', true);
-  perform set_config('app.organisation_id', v_org_a::text, true);
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',true);
+select set_config('app.organisation_id','00000000-0000-0000-0000-0000000000a1',true);
 
-  -- Positive: tenant may create and read its own operation.
-  insert into operations.operations(
-    id, organisation_id, identity_id, idempotency_key, action, purpose, expires_at
-  ) values (
-    v_op_a, v_org_a, v_id_a, 'idem-positive-1', 'annotate', 'test', now() + interval '1 hour'
-  );
+-- Positive: tenant may create and read its own operation.
+insert into operations.operations(
+  id, organisation_id, identity_id, idempotency_key, action, purpose, expires_at
+) values (
+  '00000000-0000-0000-0000-0000000000c1',
+  '00000000-0000-0000-0000-0000000000a1',
+  '00000000-0000-0000-0000-0000000000a2',
+  'idem-positive-1', 'annotate', 'test', now() + interval '1 hour'
+);
 
-  select count(*) into v_count from operations.operations where id=v_op_a;
-  if v_count <> 1 then
-    raise exception 'positive tenant read failed';
-  end if;
+do $$
+declare
+  v_count integer;
+  v_state text;
+begin
+  select count(*) into v_count from operations.operations
+  where id='00000000-0000-0000-0000-0000000000c1';
+  if v_count <> 1 then raise exception 'positive tenant read failed'; end if;
 
-  -- Atomic idempotency: duplicate key cannot create a second operation.
+  -- Atomic idempotency: duplicate key must fail on the database unique constraint.
   begin
     insert into operations.operations(
       organisation_id, identity_id, idempotency_key, action, purpose, expires_at
     ) values (
-      v_org_a, v_id_a, 'idem-positive-1', 'annotate', 'test-duplicate', now() + interval '1 hour'
+      '00000000-0000-0000-0000-0000000000a1',
+      '00000000-0000-0000-0000-0000000000a2',
+      'idem-positive-1', 'annotate', 'test-duplicate', now() + interval '1 hour'
     );
     raise exception 'duplicate idempotency key unexpectedly accepted';
-  exception when unique_violation then
-    null;
+  exception when unique_violation then null;
   end;
 
   -- CAS lifecycle: valid transition succeeds.
-  perform operations.transition(v_op_a, 'created', 'authorized');
-  select state into v_state from operations.operations where id=v_op_a;
-  if v_state <> 'authorized' then
-    raise exception 'valid lifecycle transition failed';
-  end if;
+  perform operations.transition(
+    '00000000-0000-0000-0000-0000000000c1','created','authorized'
+  );
+  select state into v_state from operations.operations
+  where id='00000000-0000-0000-0000-0000000000c1';
+  if v_state <> 'authorized' then raise exception 'valid lifecycle transition failed'; end if;
 
-  -- CAS lifecycle: stale expected state must fail.
+  -- Stale expected state cannot mutate the row.
   begin
-    perform operations.transition(v_op_a, 'created', 'queued');
+    perform operations.transition(
+      '00000000-0000-0000-0000-0000000000c1','created','queued'
+    );
     raise exception 'stale CAS transition unexpectedly succeeded';
   exception when others then
-    if sqlerrm not like 'invalid_operation_transition:%' then
-      raise;
-    end if;
+    if sqlerrm not like 'invalid_operation_transition:%' then raise; end if;
   end;
 
   -- Terminal-state protection.
-  perform operations.transition(v_op_a, 'authorized', 'cancelled');
+  perform operations.transition(
+    '00000000-0000-0000-0000-0000000000c1','authorized','cancelled'
+  );
   begin
-    perform operations.transition(v_op_a, 'cancelled', 'queued');
+    perform operations.transition(
+      '00000000-0000-0000-0000-0000000000c1','cancelled','queued'
+    );
     raise exception 'terminal state resurrected';
   exception when others then
-    if sqlerrm not like 'invalid_operation_transition:%' then
-      raise;
-    end if;
+    if sqlerrm not like 'invalid_operation_transition:%' then raise; end if;
   end;
 
-  -- Cross-tenant read must be invisible.
-  perform set_config('app.organisation_id', v_org_b::text, true);
-  select count(*) into v_count from operations.operations where id=v_op_a;
-  if v_count <> 0 then
-    raise exception 'cross-tenant operation visibility leak';
-  end if;
+  -- Switch to tenant B and verify A's operation is invisible.
+  perform set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000b3',true);
+  perform set_config('app.organisation_id','00000000-0000-0000-0000-0000000000b1',true);
 
-  -- Cross-tenant insert must fail.
+  select count(*) into v_count from operations.operations
+  where id='00000000-0000-0000-0000-0000000000c1';
+  if v_count <> 0 then raise exception 'cross-tenant operation visibility leak'; end if;
+
+  -- Cross-tenant insert must be denied by WITH CHECK.
   begin
     insert into operations.operations(
-      id, organisation_id, identity_id, idempotency_key, action, purpose, expires_at
+      organisation_id, identity_id, idempotency_key, action, purpose, expires_at
     ) values (
-      v_op_b, v_org_a, v_id_a, 'idem-cross-tenant', 'annotate', 'test', now() + interval '1 hour'
+      '00000000-0000-0000-0000-0000000000a1',
+      '00000000-0000-0000-0000-0000000000a2',
+      'idem-cross-tenant', 'annotate', 'test', now() + interval '1 hour'
     );
     raise exception 'cross-tenant operation insert unexpectedly succeeded';
   exception when others then
-    if sqlerrm = 'cross-tenant operation insert unexpectedly succeeded' then
-      raise;
-    end if;
+    if sqlerrm = 'cross-tenant operation insert unexpectedly succeeded' then raise; end if;
   end;
 
-  -- Switch back to tenant A and create an expired operation.
-  perform set_config('app.organisation_id', v_org_a::text, true);
+  -- Tenant A creates an expired operation; non-expiry transition must be rejected.
+  perform set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',true);
+  perform set_config('app.organisation_id','00000000-0000-0000-0000-0000000000a1',true);
   insert into operations.operations(
     id, organisation_id, identity_id, idempotency_key, action, purpose, expires_at
   ) values (
-    v_op_b, v_org_a, v_id_a, 'idem-expired-1', 'annotate', 'test', now() + interval '1 millisecond'
+    '00000000-0000-0000-0000-0000000000c2',
+    '00000000-0000-0000-0000-0000000000a1',
+    '00000000-0000-0000-0000-0000000000a2',
+    'idem-expired-1', 'annotate', 'test', now() + interval '1 millisecond'
   );
   perform pg_sleep(0.01);
-
   begin
-    perform operations.transition(v_op_b, 'created', 'authorized');
+    perform operations.transition(
+      '00000000-0000-0000-0000-0000000000c2','created','authorized'
+    );
     raise exception 'expired operation transitioned';
   exception when others then
-    if sqlerrm <> 'operation_expired' then
-      raise;
-    end if;
+    if sqlerrm <> 'operation_expired' then raise; end if;
   end;
 
-  -- Minimal-data policy: protected payload is represented by reference/hash, not payload JSON.
+  -- Minimal-data policy: no arbitrary payload column exists.
   select count(*) into v_count
   from information_schema.columns
   where table_schema='operations' and table_name='operations' and column_name='payload';
-  if v_count <> 0 then
-    raise exception 'operations table contains forbidden payload column';
-  end if;
-
-  raise notice 'operations persistence positive/negative assertions passed';
+  if v_count <> 0 then raise exception 'operations table contains forbidden payload column'; end if;
 end $$;
+
+rollback;
