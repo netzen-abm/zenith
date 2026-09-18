@@ -60,6 +60,7 @@ done
 "${PSQL[@]}" -f "$ROOT_DIR/tests/database/space-time-assertions.sql"
 "${PSQL[@]}" -f "$ROOT_DIR/tests/database/research-assertions.sql"
 "${PSQL[@]}" -f "$ROOT_DIR/tests/database/identity-organisation-context-assertions.sql"
+"${PSQL[@]}" -f "$ROOT_DIR/tests/database/operations-assertions.sql"
 
 snapshot_dir="$ROOT_DIR/.tmp/fresh-db-reconciliation"
 rm -rf "$snapshot_dir"
