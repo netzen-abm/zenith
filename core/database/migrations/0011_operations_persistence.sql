@@ -106,13 +106,13 @@ begin
 
   if p_next_state = 'expired' then
     -- Expiry is authoritative: only an already-due operation may enter expired.
-    if now() < (select o.expires_at from operations.operations o where o.id = p_operation_id) then
+    if clock_timestamp() < (select o.expires_at from operations.operations o where o.id = p_operation_id) then
       raise exception 'operation_not_expired';
     end if;
   elsif exists (
     select 1 from operations.operations o
     where o.id = p_operation_id
-      and o.expires_at <= now()
+      and o.expires_at <= clock_timestamp()
       and o.state <> 'expired'
   ) then
     raise exception 'operation_expired';
@@ -140,7 +140,7 @@ begin
      and state = p_expected_state
      and (
        p_next_state = 'expired'
-       or expires_at > now()
+       or expires_at > clock_timestamp()
      )
   returning * into v_row;
 
