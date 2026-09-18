@@ -18,11 +18,17 @@ begin
     ('00000000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-0000000000b3', 'Operations Test Identity B')
   on conflict (id) do nothing;
 
-  insert into core.identity_organisation_memberships(identity_id, organisation_id, membership_role)
+  insert into core.resources(id, organisation_id, resource_type, title, epistemic_status, sensitivity)
   values
-    ('00000000-0000-0000-0000-0000000000a2','00000000-0000-0000-0000-0000000000a1','member'),
-    ('00000000-0000-0000-0000-0000000000b2','00000000-0000-0000-0000-0000000000b1','member')
-  on conflict (identity_id, organisation_id) do nothing;
+    ('00000000-0000-0000-0000-0000000000d1','00000000-0000-0000-0000-0000000000a1','test','Operations Tenant A','documented','public'),
+    ('00000000-0000-0000-0000-0000000000d2','00000000-0000-0000-0000-0000000000b1','test','Operations Tenant B','documented','public')
+  on conflict (id) do nothing;
+
+  insert into core.resource_memberships(resource_id, identity_id, membership_role)
+  values
+    ('00000000-0000-0000-0000-0000000000d1','00000000-0000-0000-0000-0000000000a2','owner'),
+    ('00000000-0000-0000-0000-0000000000d2','00000000-0000-0000-0000-0000000000b2','owner')
+  on conflict (resource_id, identity_id) do nothing;
 end $$;
 
 set local role authenticated;
