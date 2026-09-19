@@ -39,7 +39,7 @@ begin
   raise exception 'direct lifecycle update unexpectedly succeeded';
 exception when insufficient_privilege then null;
 end
-$;
+$$;
 
 -- Forged initial lifecycle state must be rejected.
 do $$
@@ -57,7 +57,7 @@ begin
 exception when others then
   if sqlerrm = 'forged initial state unexpectedly succeeded' then raise; end if;
 end
-$;
+$$;
 
 -- Canonical transition remains the permitted lifecycle path.
 select operations.transition(
