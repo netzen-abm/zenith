@@ -165,3 +165,17 @@ jobs:
           chmod +x tests/database/operations-concurrency.sh
           echo "==> executing mandatory operations concurrency gate"
           tests/database/operations-concurrency.sh
+
+  contract-tests:
+    name: Contract invariants
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Verify Node.js runtime
+        run: node --version
+      - name: Run execution contract tests
+        run: |
+          node --experimental-strip-types tests/contracts/execution.test.ts
+          node --experimental-strip-types tests/contracts/execution-coordinator.test.ts
+          node --experimental-strip-types tests/contracts/operation-state.test.ts
