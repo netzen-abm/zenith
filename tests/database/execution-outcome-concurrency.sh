@@ -58,7 +58,12 @@ sleep 0.1
 touch "$tmp/go"
 wait
 
-recorded=$(grep -h '^t|recorded$' "$tmp"/1 "$tmp"/2 | wc -l | tr -d ' ')
+recorded=$(awk -F'|' '$1 == "t" && $2 == "recorded" { n++ } END { print n + 0 }' "$tmp"/1 "$tmp"/2)
+awk -F'|' 'NF >= 2 && ($1 != "t" || ($2 != "recorded" && $2 != "attempt_already_recorded")) { exit 1 }' "$tmp"/1 "$tmp"/2 || {
+  echo "unexpected concurrent outcome decision"
+  cat "$tmp"/1 "$tmp"/2
+  exit 1
+}
 [ "$recorded" -eq 1 ] || {
   echo "expected exactly one recorded outcome; got $recorded"
   cat "$tmp"/1 "$tmp"/2
