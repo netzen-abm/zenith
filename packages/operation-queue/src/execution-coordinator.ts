@@ -27,11 +27,19 @@ export type ExecutionResult = {
  * The persistent reservation is the final concurrency gate before handler entry.
  */
 export class ExecutionCoordinator {
+  private readonly authorization: ExecutionAuthorization;
+  private readonly reservation: ExecutionReservation;
+  private readonly handler: ExecutionHandler;
+
   constructor(
-    private readonly authorization: ExecutionAuthorization,
-    private readonly reservation: ExecutionReservation,
-    private readonly handler: ExecutionHandler,
-  ) {}
+    authorization: ExecutionAuthorization,
+    reservation: ExecutionReservation,
+    handler: ExecutionHandler,
+  ) {
+    this.authorization = authorization;
+    this.reservation = reservation;
+    this.handler = handler;
+  }
 
   async execute(operation: OperationEnvelope): Promise<ExecutionResult> {
     const authorized = await this.authorization.authorize(operation);
