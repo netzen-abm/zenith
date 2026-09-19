@@ -39,7 +39,7 @@ do $$ declare r record; begin
 end $$;
 
 insert into operations.operations(id,organisation_id,identity_id,idempotency_key,action,purpose,expires_at)
-values ('00000000-0000-0000-0000-0000000000e3','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000a2','reservation-expired','annotate','reservation test',clock_timestamp()+interval '1 hour');
+values ('00000000-0000-0000-0000-0000000000e3','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000a2','reservation-expired','annotate','reservation test',clock_timestamp()+interval '1 day');
 select operations.transition('00000000-0000-0000-0000-0000000000e3','created','authorized');
 select operations.transition('00000000-0000-0000-0000-0000000000e3','authorized','queued');
 reset role;
