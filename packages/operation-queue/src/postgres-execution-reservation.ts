@@ -12,7 +12,11 @@ export type SqlExecutor = {
  * Authorization and atomic claiming remain inside the database boundary.
  */
 export class PostgresExecutionReservation implements ExecutionReservation {
-  constructor(private readonly db: SqlExecutor) {}
+  private readonly db: SqlExecutor;
+
+  constructor(db: SqlExecutor) {
+    this.db = db;
+  }
 
   async reserve(operationId: string): Promise<ReservationResult> {
     const rows = await this.db.query<{ allowed: boolean; decision: string }>(
