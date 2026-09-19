@@ -54,6 +54,7 @@ const db = {
 begin;
 set local role authenticated;
 select set_config('request.jwt.claim.sub','${authUserId}',true);
+select set_config('app.identity_id','${identityId}',true);
 select set_config('app.organisation_id','${organisationId}',true);
 select allowed, decision from operations.reserve_execution('${id}'::uuid);
 commit;`;
