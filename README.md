@@ -49,11 +49,19 @@ AI must preserve provenance and epistemic status and may receive only the minimu
 
 ## Programming-language policy
 
-- **TypeScript** — primary application/API/contracts language
-- **Rust** — systems, performance, security-sensitive boundaries
-- **Python** — AI/ML, OCR/HTR, computer vision, statistics, scientific workloads
-- **SQL/PostgreSQL/PostGIS** — system of record and spatial integrity
-- **Elixir** — conditional; introduced only through an architecture decision demonstrating concrete need
+ZENITH is deliberately polyglot, but not language-heavy.
+
+- **TypeScript** — default for application, API, SDK, contracts and orchestration
+- **SQL/PostgreSQL/PostGIS** — canonical data integrity, RLS, authorization predicates and transactional boundaries
+- **Rust** — approved specialist language for memory-safe parsers, high-performance processing, device/edge components, WASM and security-sensitive native boundaries; introduced only when a concrete requirement justifies it
+- **Python** — AI/ML, OCR/HTR, computer vision, statistics and scientific/research workloads
+- **Shell** — CI and repository/database tooling
+- **Kotlin / Swift** — conditional native mobile implementation only when platform-specific capability requires it
+- **Elixir** — deferred; only with an ADR demonstrating a concrete concurrency/distribution requirement not well served by the existing stack
+
+**Current implementation:** TypeScript + SQL + Python + Shell. Rust is approved but intentionally not added until the first concrete Rust-worthy workload appears.
+
+See `docs/architecture/PROGRAMMING-LANGUAGE-ARCHITECTURE.md` for the complete language-selection and repository-structure policy.
 
 ## Repository structure
 

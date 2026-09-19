@@ -21,10 +21,13 @@ This document governs architectural evolution of ZENITH and prevents accidental 
 | Language | Canonical role | Entry condition |
 |---|---|---|
 | TypeScript | Application, API, SDK, contracts, orchestration | Default |
-| Rust | Systems, performance, security-sensitive, parsers, WASM/edge | ADR demonstrating benefit |
+| SQL | Data integrity, relational logic, PostgreSQL/PostGIS, RLS, transactional boundaries | Data boundary |
+| Rust | Systems, performance, memory-safe parsers, security-sensitive components, WASM/edge | ADR demonstrating concrete benefit |
 | Python | AI/ML, OCR/HTR, CV, statistics, scientific computing | Functional boundary |
-| SQL | Data integrity, relational logic, PostGIS | Data boundary |
-| Elixir | Concurrency/distributed/event workloads | ADR demonstrating concrete need |
+| Shell | CI, reconciliation and repository tooling | Tooling boundary |
+| Kotlin | Native Android only when platform capability materially requires it | ADR demonstrating concrete need |
+| Swift | Native Apple surface only when platform capability materially requires it | ADR demonstrating concrete need |
+| Elixir | High-concurrency/event workloads only when existing services are insufficient | ADR demonstrating concrete need |
 
 A new language requires an ADR covering capability fit, operational cost, security, hiring/maintenance impact, interoperability, and exit strategy.
 
