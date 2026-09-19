@@ -39,10 +39,16 @@ do $$ declare r record; begin
 end $$;
 
 insert into operations.operations(id,organisation_id,identity_id,idempotency_key,action,purpose,expires_at)
-values ('00000000-0000-0000-0000-0000000000e3','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000a2','reservation-expired','annotate','reservation test',clock_timestamp()+interval '1 millisecond');
+values ('00000000-0000-0000-0000-0000000000e3','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000a2','reservation-expired','annotate','reservation test',clock_timestamp()+interval '1 hour');
 select operations.transition('00000000-0000-0000-0000-0000000000e3','created','authorized');
 select operations.transition('00000000-0000-0000-0000-0000000000e3','authorized','queued');
-select pg_sleep(0.01);
+reset role;
+update operations.operations
+   set expires_at = clock_timestamp() - interval '1 millisecond'
+ where id='00000000-0000-0000-0000-0000000000e3';
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',true);
+select set_config('app.organisation_id','00000000-0000-0000-0000-0000000000a1',true);
 do $$ declare r record; begin
   select * into r from operations.reserve_execution('00000000-0000-0000-0000-0000000000e3');
   if r.allowed or r.decision <> 'expired' or r.state <> 'queued' then raise exception 'expiry reservation failed closed'; end if;
