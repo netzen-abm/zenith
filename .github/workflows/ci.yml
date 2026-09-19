@@ -174,6 +174,8 @@ jobs:
           chmod +x tests/database/operations-concurrency.sh
           echo "==> executing mandatory operations concurrency gate"
           tests/database/operations-concurrency.sh
+          echo "==> executing mandatory durable execution outcome concurrency gate"
+          bash tests/database/execution-outcome-concurrency.sh
 
   operation-queue-tests:
     name: Operation queue tests
