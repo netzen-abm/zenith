@@ -9,8 +9,7 @@ export interface AuthorizationDecision {
 
 export interface CoordinatorDependencies {
   authorize: (operation: OperationEnvelope) => AuthorizationDecision;
-  isDuplicate: (scope: string, key: string) => boolean;
-  markStarted: (scope: string, key: string) => void;
+  reserveExecution: (operation: OperationEnvelope) => AuthorizationDecision;
   handle: (operation: OperationEnvelope) => Promise<unknown>;
   audit: (event: CoordinatorEvent) => Promise<void>;
   release: (leaseId: string) => Promise<void>;
@@ -59,9 +58,10 @@ export async function executeOperation(
 
   if (!deps.authorize(operation).allowed) return "denied";
 
-  const scope = operation.organisationId ?? "global";
-  if (deps.isDuplicate(scope, operation.idempotencyKey)) return "duplicate";
-  deps.markStarted(scope, operation.idempotencyKey);
+  // The reservation is the execution-boundary gate: implementations must make
+  // authorization + idempotency reservation atomic at their persistence boundary.
+  const reservation = deps.reserveExecution(operation);
+  if (!reservation.allowed) return reservation.decision === "duplicate" ? "duplicate" : "denied";
 
   try {
     await deps.handle(operation);
