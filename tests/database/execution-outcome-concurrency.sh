@@ -49,7 +49,14 @@ done
 sleep 0.1
 touch "$tmp/go"
 wait
-recorded=$(grep -h '^t|recorded$' "$tmp"/1 "$tmp"/2 | wc -l | tr -d ' ')
+recorded=$(grep -h '^t|recorded
+[ "$recorded" -eq 1 ] || { echo "expected exactly one recorded outcome; got $recorded"; cat "$tmp"/1 "$tmp"/2; exit 1; }
+state=$("\${psql_args[@]}" -c "select state from operations.operations where id='$op'")
+outcomes=$("\${psql_args[@]}" -c "select count(*) from operations.execution_outcomes where operation_id='$op'")
+outbox=$("\${psql_args[@]}" -c "select count(*) from operations.execution_outbox where operation_id='$op'")
+[ "$state" = "acknowledged" ] && [ "$outcomes" = "1" ] && [ "$outbox" = "1" ]
+echo "execution outcome concurrency assertions passed"
+ "$tmp"/1 "$tmp"/2 | wc -l | tr -d ' ')
 [ "$recorded" -eq 1 ] || { echo "expected exactly one recorded outcome; got $recorded"; cat "$tmp"/1 "$tmp"/2; exit 1; }
 state=$("\${psql_args[@]}" -c "select state from operations.operations where id='$op'")
 outcomes=$("\${psql_args[@]}" -c "select count(*) from operations.execution_outcomes where operation_id='$op'")
