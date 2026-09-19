@@ -125,16 +125,7 @@ begin
     return;
   end if;
 
-  if exists (
-    select 1 from operations.execution_outcomes eo
-    where eo.operation_id = v_operation.id
-      and eo.attempt_count = p_attempt_count
-  ) then
-    return query select false, 'duplicate_outcome'::text, v_operation.id, null::uuid, v_operation.state, v_operation.attempt_count;
-    return;
-  end if;
-
-  insert into operations.execution_outcomes(
+    insert into operations.execution_outcomes(
     operation_id, attempt_count, outcome, error_code, result_ref, result_hash, occurred_at
   ) values (
     v_operation.id, p_attempt_count, p_outcome, p_error_code, p_result_ref, p_result_hash, p_occurred_at
@@ -169,7 +160,7 @@ begin
   return query select true, 'recorded'::text, v_operation.id, v_outcome_id, v_new_state, p_attempt_count;
 exception
   when unique_violation then
-    return query select false, 'duplicate_outcome'::text, p_operation_id, null::uuid, v_operation.state, v_operation.attempt_count;
+    return query select false, 'attempt_already_recorded'::text, p_operation_id, null::uuid, v_operation.state, v_operation.attempt_count;
 end;
 $$;
 
