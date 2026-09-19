@@ -31,7 +31,7 @@ insert into operations.operations(
   'mutation-boundary', 'annotate', 'mutation boundary', clock_timestamp()+interval '1 hour'
 );
 
-do $
+do $$
 begin
   update operations.operations
      set state='queued'
@@ -42,7 +42,7 @@ end
 $;
 
 -- Forged initial lifecycle state must be rejected.
-do $
+do $$
 begin
   insert into operations.operations(
     id, organisation_id, identity_id, idempotency_key, action, purpose, expires_at, state
