@@ -64,7 +64,7 @@ done
 "${PSQL[@]}" -f "$ROOT_DIR/tests/database/operations-mutation-boundary-assertions.sql"
 "${PSQL[@]}" -f "$ROOT_DIR/tests/database/execution-reservation-assertions.sql"
 "${PSQL[@]}" -f "$ROOT_DIR/tests/database/execution-outcome-assertions.sql"
-"$ROOT_DIR/tests/database/execution-outcome-concurrency.sh"
+bash "$ROOT_DIR/tests/database/execution-outcome-concurrency.sh"
 chmod +x "$ROOT_DIR/tests/database/execution-reservation-concurrency.sh"
 "$ROOT_DIR/tests/database/execution-reservation-concurrency.sh"
 
