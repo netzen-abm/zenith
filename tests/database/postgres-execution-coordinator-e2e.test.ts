@@ -111,6 +111,8 @@ const results = await Promise.all([
   }),
 ]);
 
+console.log('Coordinator E2E results:', JSON.stringify(results));
+console.log('Coordinator E2E handler entries:', handlerEntries);
 assert.equal(results.filter(r => r.executed).length, 1);
 assert.equal(results.filter(r => r.decision === 'deny_reservation').length, 1);
 assert.equal(handlerEntries, 1);
