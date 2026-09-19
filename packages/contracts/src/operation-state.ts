@@ -1,6 +1,8 @@
-import { OperationState } from "./operation";
+import type { OperationState } from "./operation";
 
-const transitions: Record<OperationState, readonly OperationState[]> = {
+// Canonical lifecycle contract consumed by runtime execution code.
+// The PostgreSQL operations.transition() function is the persistent enforcement point.
+export const OPERATION_TRANSITIONS: Record<OperationState, readonly OperationState[]> = {
   created: ["authorized", "rejected", "cancelled"],
   authorized: ["queued", "rejected", "cancelled", "expired"],
   queued: ["in_flight", "cancelled", "expired", "blocked"],
@@ -13,7 +15,7 @@ const transitions: Record<OperationState, readonly OperationState[]> = {
   rejected: [],
   completed: [],
   cancelled: [],
-};
+};;
 
 export function canTransition(from: OperationState, to: OperationState): boolean {
   return transitions[from].includes(to);
