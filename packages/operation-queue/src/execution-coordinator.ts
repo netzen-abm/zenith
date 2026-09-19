@@ -25,6 +25,7 @@ export type ExecutionResult = {
 /**
  * Coordinates execution without becoming an authorization authority.
  * The persistent reservation is the final concurrency gate before handler entry.
+ * Keep the coordinator orchestration-only; authorization remains canonical in Core.
  */
 export class ExecutionCoordinator {
   private readonly authorization: ExecutionAuthorization;
