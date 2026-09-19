@@ -7,7 +7,7 @@ create table if not exists operations.execution_outcomes (
   id uuid primary key default gen_random_uuid(),
   operation_id uuid not null references operations.operations(id) on delete restrict,
   attempt_count integer not null check (attempt_count >= 1),
-  outcome text not null check (outcome in ('acknowledged','completed','retry_wait','conflict','rejected')),
+  outcome text not null check (outcome in ('acknowledged','retry_wait','conflict','rejected')),
   error_code text,
   result_ref text,
   result_hash text,
@@ -81,7 +81,7 @@ returns table (
   attempt_count integer
 )
 language plpgsql
-security invoker
+security definer
 volatile
 set search_path = ''
 as $$
@@ -114,7 +114,6 @@ begin
 
   v_new_state := case p_outcome
     when 'acknowledged' then 'acknowledged'
-    when 'completed' then 'completed'
     when 'retry_wait' then 'retry_wait'
     when 'conflict' then 'conflict'
     when 'rejected' then 'rejected'
@@ -175,3 +174,7 @@ end;
 $$;
 
 revoke all on function operations.record_execution_outcome(uuid,integer,text,text,text,text,timestamptz) from public, authenticated;
+grant execute on function operations.record_execution_outcome(uuid,integer,text,text,text,text,timestamptz) to authenticated;
+
+comment on function operations.record_execution_outcome(uuid,integer,text,text,text,text,timestamptz) is
+  'Canonical durable execution outcome boundary. SECURITY DEFINER is narrowly scoped; operation tenant/state/attempt checks remain explicit and authenticated direct writes to outcome/outbox tables remain revoked.';
