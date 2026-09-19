@@ -31,15 +31,18 @@ insert into operations.operations(
   'mutation-boundary', 'annotate', 'mutation boundary', clock_timestamp()+interval '1 hour'
 );
 
+do $
 begin
   update operations.operations
      set state='queued'
    where id='00000000-0000-0000-0000-0000000000f2';
   raise exception 'direct lifecycle update unexpectedly succeeded';
 exception when insufficient_privilege then null;
-end;
+end
+$;
 
 -- Forged initial lifecycle state must be rejected.
+do $
 begin
   insert into operations.operations(
     id, organisation_id, identity_id, idempotency_key, action, purpose, expires_at, state
@@ -53,7 +56,8 @@ begin
   raise exception 'forged initial state unexpectedly succeeded';
 exception when others then
   if sqlerrm = 'forged initial state unexpectedly succeeded' then raise; end if;
-end;
+end
+$;
 
 -- Canonical transition remains the permitted lifecycle path.
 perform operations.transition(
