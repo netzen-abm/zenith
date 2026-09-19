@@ -47,6 +47,18 @@ insert into operations.operations(
 );
 `);
 
+const context = await psql(`
+begin;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','${authUserId}',true);
+select set_config('app.identity_id','${identityId}',true);
+select set_config('app.organisation_id','${organisationId}',true);
+select coalesce(core.current_identity_id()::text,'null') || '|' ||
+       coalesce(core.current_organisation_id()::text,'null') || '|' ||
+       coalesce((select allowed from core.authorize_capability('annotate','${resourceId}'::uuid,'coordinator e2e') limit 1)::text,'null') || '|' ||
+       coalesce((select decision from core.authorize_capability('annotate','${resourceId}'::uuid,'coordinator e2e') limit 1),'null');
+rollback;`);
+console.log('Coordinator E2E auth context:', context);
 const db = {
   async query<T extends Record<string, unknown>>(sql: string, params: readonly unknown[]) {
     const id = String(params[0]).replaceAll("'", "''");
