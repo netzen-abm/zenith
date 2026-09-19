@@ -15,10 +15,10 @@ export const OPERATION_TRANSITIONS: Record<OperationState, readonly OperationSta
   rejected: [],
   completed: [],
   cancelled: [],
-};;
+};
 
 export function canTransition(from: OperationState, to: OperationState): boolean {
-  return transitions[from].includes(to);
+  return OPERATION_TRANSITIONS[from].includes(to);
 }
 
 export function transition(
