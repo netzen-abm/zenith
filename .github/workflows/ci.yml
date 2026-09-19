@@ -156,8 +156,8 @@ jobs:
           chmod +x tests/database/fresh-db-reconciliation.sh
           tests/database/fresh-db-reconciliation.sh
 
-      - name: Setup Node.js for database-backed coordinator test
-        uses: actions/setup-node@1e60f620b9541dca0a9e7e7f2c3b3f6b9f0b6e7a # v4.0.4
+      - name: Verify Node.js runtime for database-backed coordinator test
+        run: node --version
 
       - name: Run PostgreSQL-backed execution coordinator E2E
         shell: bash
