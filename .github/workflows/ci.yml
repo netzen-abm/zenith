@@ -165,4 +165,16 @@ jobs:
           chmod +x tests/database/operations-concurrency.sh
           echo "==> executing mandatory operations concurrency gate"
           tests/database/operations-concurrency.sh
-\n  operation-queue-tests:\n    name: Operation queue tests\n    runs-on: ubuntu-latest\n    steps:\n      - name: Checkout\n        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n      - name: Verify Node.js runtime\n        run: node --version\n      - name: Run operation queue invariant tests\n        run: node --experimental-strip-types packages/operation-queue/src/lifecycle.test.ts\n
+
+  operation-queue-tests:
+    name: Operation queue tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Verify Node.js runtime
+        run: node --version
+      - name: Run operation queue invariant tests
+        run: |
+          node --experimental-strip-types packages/operation-queue/src/lifecycle.test.ts
+          node --experimental-strip-types packages/operation-queue/src/execution-coordinator.test.ts
