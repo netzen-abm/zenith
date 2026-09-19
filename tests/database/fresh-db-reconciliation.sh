@@ -61,6 +61,9 @@ done
 "${PSQL[@]}" -f "$ROOT_DIR/tests/database/research-assertions.sql"
 "${PSQL[@]}" -f "$ROOT_DIR/tests/database/identity-organisation-context-assertions.sql"
 "${PSQL[@]}" -f "$ROOT_DIR/tests/database/operations-assertions.sql"
+"${PSQL[@]}" -f "$ROOT_DIR/tests/database/execution-reservation-assertions.sql"
+chmod +x "$ROOT_DIR/tests/database/execution-reservation-concurrency.sh"
+"$ROOT_DIR/tests/database/execution-reservation-concurrency.sh"
 
 snapshot_dir="$ROOT_DIR/.tmp/fresh-db-reconciliation"
 rm -rf "$snapshot_dir"
