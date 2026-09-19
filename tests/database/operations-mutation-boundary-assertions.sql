@@ -11,7 +11,7 @@ insert into operations.operations(
 ) values (
   '00000000-0000-0000-0000-0000000000f2',
   '00000000-0000-0000-0000-0000000000a1',
-  '00000000-0000-0000-0000-0000000000a2',
+  '00000000-0000-0000-0000-0000000000a3',
   'mutation-boundary', 'annotate', 'mutation boundary', clock_timestamp()+interval '1 hour'
 );
 
@@ -30,7 +30,7 @@ begin
   ) values (
     '00000000-0000-0000-0000-0000000000f3',
     '00000000-0000-0000-0000-0000000000a1',
-    '00000000-0000-0000-0000-0000000000a2',
+    '00000000-0000-0000-0000-0000000000a3',
     'mutation-boundary-forged-state', 'annotate', 'mutation boundary',
     clock_timestamp()+interval '1 hour', 'queued'
   );
