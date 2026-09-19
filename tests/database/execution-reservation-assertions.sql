@@ -26,8 +26,12 @@ end $$;
 insert into operations.operations(id,organisation_id,identity_id,idempotency_key,action,resource_id,purpose,expires_at,state)
 values ('00000000-0000-0000-0000-0000000000e2','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000a2','reservation-denied','update','00000000-0000-0000-0000-0000000000d1','reservation test',clock_timestamp()+interval '1 hour','queued');
 
--- The Core policy currently permits owner writes; remove membership to force current denial.
+-- The Core policy currently permits owner writes; revoke membership as the database owner by switching out of the authenticated role.
+reset role;
 delete from core.resource_memberships where resource_id='00000000-0000-0000-0000-0000000000d1' and identity_id='00000000-0000-0000-0000-0000000000a2';
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',true);
+select set_config('app.organisation_id','00000000-0000-0000-0000-0000000000a1',true);
 do $$ declare r record; begin
   select * into r from operations.reserve_execution('00000000-0000-0000-0000-0000000000e2');
   if r.allowed or r.decision <> 'deny_policy' or r.state <> 'queued' then raise exception 'policy denial failed closed'; end if;
