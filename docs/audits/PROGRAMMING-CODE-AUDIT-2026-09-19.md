@@ -45,9 +45,9 @@ That meant an authenticated caller could potentially mutate state, attempt_count
 
 PR #43 removes direct authenticated UPDATE and constrains authenticated creation to state='created', attempt_count=0, and a future expiry. Lifecycle progression remains through 'operations.transition(...)' and 'operations.reserve_execution(...)'.
 
-**Status:** remediation implemented; CI verification pending.
+**Status:** remediation implemented; CI verification completed by merged PR #43.
 
-### F-02 — Two execution orchestration implementations exist — HIGH — open
+### F-02 — Two execution orchestration implementations exist — HIGH — remediation in progress
 
 There are two materially different execution coordinators:
 - 'packages/contracts/src/execution-coordinator.ts' exposes 'executeOperation(...)' and performs lease validation, authorization, duplicate detection, handler execution, audit, and release.
@@ -105,6 +105,15 @@ A crash after the handler performs an external side effect but before durable ac
 It must not be imported by production runtime code or allowed to become a shadow authorization implementation.
 
 **Status:** currently isolated under tests.
+
+## 2026-09-19 convergence update
+
+- The superseded executable coordinator in `packages/contracts/src/execution-coordinator.ts` was archived under `docs/archive/legacy-execution-coordinator-2026-09-19.ts.txt` and removed from the production contract package on the convergence branch.
+- `packages/contracts/src/operation-state.ts` now owns the exported `OPERATION_TRANSITIONS` graph.
+- `packages/operation-queue/src/lifecycle.ts` consumes that canonical graph rather than maintaining a second transition table.
+- Production execution coordination remains in `packages/operation-queue/src/execution-coordinator.ts`, with PostgreSQL reservation as the persistent execution gate.
+
+The convergence branch must still pass the full CI suite before merge.
 
 ## Verification gaps
 
