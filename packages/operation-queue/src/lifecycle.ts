@@ -1,4 +1,5 @@
 import type { OperationState } from '../../contracts/src/operation.ts';
+import { OPERATION_TRANSITIONS } from '../../contracts/src/operation-state.ts';
 
 export type Operation = {
   operationId: string;
@@ -8,8 +9,6 @@ export type Operation = {
   expiresAt?: number;
   leaseValid: boolean;
 };
-
-import { OPERATION_TRANSITIONS } from '../../contracts/src/operation-state.ts';
 
 
 export function transition(operation: Operation, next: OperationState, now = Date.now()): Operation {
