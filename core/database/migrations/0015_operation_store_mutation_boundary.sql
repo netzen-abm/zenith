@@ -15,7 +15,6 @@ create policy operations_tenant_insert
     and identity_id = core.current_identity_id()
     and state = 'created'
     and attempt_count = 0
-    and expires_at > clock_timestamp()
   );
 
 -- Lifecycle mutation now executes through the narrowly scoped function boundary.
