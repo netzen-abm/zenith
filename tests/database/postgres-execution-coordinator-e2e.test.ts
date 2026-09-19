@@ -1,8 +1,8 @@
 import { strict as assert } from 'node:assert';
 import { promisify } from 'node:util';
 import { execFile } from 'node:child_process';
-import { ExecutionCoordinator } from './execution-coordinator.ts';
-import { PostgresExecutionReservation } from './postgres-execution-reservation.ts';
+import { ExecutionCoordinator } from '../../packages/operation-queue/src/execution-coordinator.ts';
+import { PostgresExecutionReservation } from '../../packages/operation-queue/src/postgres-execution-reservation.ts';
 
 const execFileAsync = promisify(execFile);
 const dbUrl = process.env.DATABASE_URL;
@@ -90,8 +90,8 @@ assert.equal(results.filter(r => r.executed).length, 1);
 assert.equal(results.filter(r => r.decision === 'deny_reservation').length, 1);
 assert.equal(handlerEntries, 1);
 
-const state = await psql(`select state || E'\\t' || attempt_count from operations.operations where id = '${operationId}'`);
-assert.equal(state, 'in_flight\\t1');
+const state = await psql(`select state || '|' || attempt_count from operations.operations where id = '${operationId}'`);
+assert.equal(state, 'in_flight|1');
 
 await psql(`delete from operations.operations where id = '${operationId}'`);
 console.log('PostgreSQL-backed ExecutionCoordinator E2E assertions passed.');
