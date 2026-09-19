@@ -152,8 +152,8 @@ begin
   update operations.operations
   set state = v_new_state, updated_at = clock_timestamp()
   where id = v_operation.id
-    and state = 'in_flight'
-    and attempt_count = p_attempt_count;
+    and operations.operations.state = 'in_flight'
+    and operations.operations.attempt_count = p_attempt_count;
 
   if not found then
     raise exception 'operation_outcome_transition_conflict';
