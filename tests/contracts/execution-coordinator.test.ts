@@ -7,8 +7,7 @@ let released = 0;
 
 const deps = {
   authorize: () => ({ allowed: true, decision: "allow" }),
-  isDuplicate: () => false,
-  markStarted: () => undefined,
+  reserveExecution: () => ({ allowed: true, decision: "allow" }),
   handle: async () => { handled += 1; },
   audit: async (e: { outcome: string }) => { events.push(e.outcome); },
   release: async () => { released += 1; },
@@ -67,3 +66,19 @@ assert(
   "duplicate must stop execution",
 );
 assert(handled === 1, "duplicate must not reach handler");
+
+// TOCTOU regression: preflight authorization may pass, but the atomic reservation
+// must be able to deny before the handler is invoked.
+let authChecks = 0;
+let raceHandled = 0;
+const revokedBeforeReservation = {
+  ...deps,
+  authorize: () => ({ allowed: ++authChecks === 1, decision: authChecks === 1 ? "allow" : "deny_policy" }),
+  reserveExecution: () => ({ allowed: false, decision: "deny_policy" }),
+  handle: async () => { raceHandled += 1; },
+};
+assert(
+  await executeOperation(operation, lease, revokedBeforeReservation, "2026-09-18T00:05:00Z") === "denied",
+  "execution reservation must fail closed when authorization changes before reservation",
+);
+assert(raceHandled === 0, "reservation denial must prevent side effects");
