@@ -22,7 +22,7 @@ commit;
 SQL
 
 for n in 1 2; do
-  "${PSQL[@]}" >"/tmp/zenith-reservation-race-$n.out" 2>&1 <<SQL &
+  "${PSQL[@]}" -At >"/tmp/zenith-reservation-race-$n.out" 2>&1 <<SQL &
 begin;
 set local role authenticated
 select set_config('request.jwt.claim.sub','$AUTH_USER',true);
