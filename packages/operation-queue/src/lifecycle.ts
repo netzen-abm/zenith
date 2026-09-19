@@ -10,6 +10,9 @@ export type Operation = {
   leaseValid: boolean;
 };
 
+// Runtime lifecycle legality is sourced from the canonical contract graph.
+
+
 
 export function transition(operation: Operation, next: OperationState, now = Date.now()): Operation {
   if (!OPERATION_TRANSITIONS[operation.state].includes(next)) {
