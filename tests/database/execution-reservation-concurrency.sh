@@ -24,7 +24,7 @@ SQL
 for n in 1 2; do
   "${PSQL[@]}" -At >"/tmp/zenith-reservation-race-$n.out" 2>&1 <<SQL &
 begin;
-set local role authenticated
+set local role authenticated;
 select set_config('request.jwt.claim.sub','$AUTH_USER',true);
 select set_config('app.organisation_id','$TENANT',true);
 select pg_sleep(0.5);
