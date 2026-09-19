@@ -176,5 +176,6 @@ jobs:
       - name: Verify Node.js runtime
         run: node --version
       - name: Run operation queue invariant tests
-        run: node --experimental-strip-types packages/operation-queue/src/lifecycle.test.ts
+        run: |
+          node --experimental-strip-types packages/operation-queue/src/lifecycle.test.ts
           node --experimental-strip-types packages/operation-queue/src/execution-coordinator.test.ts
