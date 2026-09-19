@@ -15,18 +15,19 @@ select set_config('app.organisation_id','00000000-0000-0000-0000-0000000000a1',t
 insert into operations.operations(id,organisation_id,identity_id,idempotency_key,action,resource_id,purpose,expires_at)
 values ('00000000-0000-0000-0000-0000000000e1','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000a2','reservation-positive','annotate','00000000-0000-0000-0000-0000000000d1','reservation test',clock_timestamp()+interval '1 hour');
 
-update operations.operations set state='queued' where id='00000000-0000-0000-0000-0000000000e1';
+select operations.transition('00000000-0000-0000-0000-0000000000e1','created','authorized');
+select operations.transition('00000000-0000-0000-0000-0000000000e1','authorized','queued');
 
 do $$ declare r record; begin
   select * into r from operations.reserve_execution('00000000-0000-0000-0000-0000000000e1');
   if not r.allowed or r.decision <> 'allow' or r.state <> 'in_flight' or r.attempt_count <> 1 then raise exception 'positive reservation failed'; end if;
 end $$;
 
--- Current-policy denial must prevent reservation.
-insert into operations.operations(id,organisation_id,identity_id,idempotency_key,action,resource_id,purpose,expires_at,state)
-values ('00000000-0000-0000-0000-0000000000e2','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000a2','reservation-denied','update','00000000-0000-0000-0000-0000000000d1','reservation test',clock_timestamp()+interval '1 hour','queued');
+insert into operations.operations(id,organisation_id,identity_id,idempotency_key,action,resource_id,purpose,expires_at)
+values ('00000000-0000-0000-0000-0000000000e2','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000a2','reservation-denied','update','00000000-0000-0000-0000-0000000000d1','reservation test',clock_timestamp()+interval '1 hour');
+select operations.transition('00000000-0000-0000-0000-0000000000e2','created','authorized');
+select operations.transition('00000000-0000-0000-0000-0000000000e2','authorized','queued');
 
--- The Core policy currently permits owner writes; revoke membership as the database owner by switching out of the authenticated role.
 reset role;
 delete from core.resource_memberships where resource_id='00000000-0000-0000-0000-0000000000d1' and identity_id='00000000-0000-0000-0000-0000000000a2';
 set local role authenticated;
@@ -37,10 +38,17 @@ do $$ declare r record; begin
   if r.allowed or r.decision <> 'deny_policy' or r.state <> 'queued' then raise exception 'policy denial failed closed'; end if;
 end $$;
 
--- Expiry is authoritative and cannot reserve.
-insert into operations.operations(id,organisation_id,identity_id,idempotency_key,action,purpose,expires_at,state)
-values ('00000000-0000-0000-0000-0000000000e3','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000a2','reservation-expired','annotate','reservation test',clock_timestamp()+interval '1 millisecond','queued');
-select pg_sleep(0.01);
+insert into operations.operations(id,organisation_id,identity_id,idempotency_key,action,purpose,expires_at)
+values ('00000000-0000-0000-0000-0000000000e3','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000a2','reservation-expired','annotate','reservation test',clock_timestamp()+interval '1 day');
+select operations.transition('00000000-0000-0000-0000-0000000000e3','created','authorized');
+select operations.transition('00000000-0000-0000-0000-0000000000e3','authorized','queued');
+reset role;
+update operations.operations
+   set expires_at = clock_timestamp() - interval '1 millisecond'
+ where id='00000000-0000-0000-0000-0000000000e3';
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',true);
+select set_config('app.organisation_id','00000000-0000-0000-0000-0000000000a1',true);
 do $$ declare r record; begin
   select * into r from operations.reserve_execution('00000000-0000-0000-0000-0000000000e3');
   if r.allowed or r.decision <> 'expired' or r.state <> 'queued' then raise exception 'expiry reservation failed closed'; end if;

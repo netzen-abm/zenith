@@ -35,10 +35,7 @@ count=$("${PSQL[@]}" -Atc "select count(*) from operations.operations where orga
 test "$count" -eq 1
 "${PSQL[@]}" <<SQL
 begin;
-set local role authenticated;
-select set_config('request.jwt.claim.sub','$AUTH_USER',true);
-select set_config('app.organisation_id','$TENANT',true);
-insert into operations.operations(id,organisation_id,identity_id,idempotency_key,action,purpose,expires_at) values ('$OP_ID','$TENANT','$IDENTITY','cas-race','annotate','concurrency-test',clock_timestamp()+interval '1 hour') on conflict (id) do update set state='created',expires_at=clock_timestamp()+interval '1 hour';
+insert into operations.operations(id,organisation_id,identity_id,idempotency_key,action,purpose,expires_at) values ('$OP_ID','$TENANT','$IDENTITY','cas-race','annotate','concurrency-test',clock_timestamp()+interval '1 hour') on conflict (id) do update set state='created',expires_at=excluded.expires_at;
 commit;
 SQL
 for n in 1 2; do

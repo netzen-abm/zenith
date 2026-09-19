@@ -17,7 +17,13 @@ insert into core.identity_organisation_memberships(identity_id,organisation_id,m
 insert into core.resources(id,organisation_id,resource_type,title,epistemic_status,sensitivity) values ('$RESOURCE','$TENANT','test','Reservation Concurrency Resource','documented','public') on conflict do nothing;
 insert into core.resource_memberships(resource_id,identity_id,membership_role) values ('$RESOURCE','$IDENTITY','owner') on conflict (resource_id,identity_id) do nothing;
 delete from operations.operations where id='$OP_ID';
-insert into operations.operations(id,organisation_id,identity_id,idempotency_key,action,resource_id,purpose,expires_at,state) values ('$OP_ID','$TENANT','$IDENTITY','reservation-concurrency','annotate','$RESOURCE','reservation concurrency',clock_timestamp()+interval '1 hour','queued');
+set local role authenticated;
+select set_config('request.jwt.claim.sub','$AUTH_USER',true);
+select set_config('app.identity_id','$IDENTITY',true);
+select set_config('app.organisation_id','$TENANT',true);
+insert into operations.operations(id,organisation_id,identity_id,idempotency_key,action,resource_id,purpose,expires_at) values ('$OP_ID','$TENANT','$IDENTITY','reservation-concurrency','annotate','$RESOURCE','reservation concurrency',clock_timestamp()+interval '1 hour');
+select operations.transition('$OP_ID','created','authorized');
+select operations.transition('$OP_ID','authorized','queued');
 commit;
 SQL
 
@@ -26,6 +32,7 @@ for n in 1 2; do
 begin;
 set local role authenticated;
 select set_config('request.jwt.claim.sub','$AUTH_USER',true);
+select set_config('app.identity_id','$IDENTITY',true);
 select set_config('app.organisation_id','$TENANT',true);
 select pg_sleep(0.5);
 select * from operations.reserve_execution('$OP_ID');
@@ -34,11 +41,16 @@ SQL
 done
 wait || true
 
+for n in 1 2; do
+  echo "==> reservation race session $n"
+  cat "/tmp/zenith-reservation-race-$n.out"
+done
+
 allows=0
 denied=0
 for n in 1 2; do
-  grep -q '|allow|' "/tmp/zenith-reservation-race-$n.out" && allows=$((allows+1)) || true
-  grep -Eq '\|(deny_state|operation_transition_conflict)\|' "/tmp/zenith-reservation-race-$n.out" && denied=$((denied+1)) || true
+  grep -Eq '(^|\n)[^|]*\|allow\|' "/tmp/zenith-reservation-race-$n.out" && allows=$((allows+1)) || true
+  grep -Eq '(^|\n)[^|]*\|(deny_state|operation_transition_conflict)\|' "/tmp/zenith-reservation-race-$n.out" && denied=$((denied+1)) || true
 done
 test "$allows" -eq 1
 test "$denied" -eq 1
