@@ -1,6 +1,22 @@
 -- Regression assertions for the operations mutation boundary.
 begin;
 
+insert into auth.users(id)
+values ('00000000-0000-0000-0000-0000000000a3')
+on conflict do nothing;
+
+insert into core.organisations(id,name,slug)
+values ('00000000-0000-0000-0000-0000000000a1','Mutation Boundary Test','mutation-boundary-test')
+on conflict do nothing;
+
+insert into core.identities(id,auth_user_id,display_name)
+values ('00000000-0000-0000-0000-0000000000a2','00000000-0000-0000-0000-0000000000a3','Mutation Boundary Identity')
+on conflict do nothing;
+
+insert into core.identity_organisation_memberships(identity_id,organisation_id,membership_role)
+values ('00000000-0000-0000-0000-0000000000a2','00000000-0000-0000-0000-0000000000a1','member')
+on conflict (identity_id,organisation_id) do nothing;
+
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a3',true);
 select set_config('app.organisation_id','00000000-0000-0000-0000-0000000000a1',true);
@@ -11,7 +27,7 @@ insert into operations.operations(
 ) values (
   '00000000-0000-0000-0000-0000000000f2',
   '00000000-0000-0000-0000-0000000000a1',
-  '00000000-0000-0000-0000-0000000000a3',
+  '00000000-0000-0000-0000-0000000000a2',
   'mutation-boundary', 'annotate', 'mutation boundary', clock_timestamp()+interval '1 hour'
 );
 
@@ -30,7 +46,7 @@ begin
   ) values (
     '00000000-0000-0000-0000-0000000000f3',
     '00000000-0000-0000-0000-0000000000a1',
-    '00000000-0000-0000-0000-0000000000a3',
+    '00000000-0000-0000-0000-0000000000a2',
     'mutation-boundary-forged-state', 'annotate', 'mutation boundary',
     clock_timestamp()+interval '1 hour', 'queued'
   );
