@@ -94,8 +94,8 @@ select set_config('app.organisation_id','${organisationId}',true);
 select allowed, decision from operations.reserve_execution('${id}'::uuid);
 commit;`;
     const output = await psql(query);
-    const line = output.split('\n').filter(Boolean).at(-1);
-    if (!line) return [];
+    const line = output.split('\n').find((entry) => entry === 't\tallow' || entry === 'f\tdeny_state' || entry === 'f\tdeny_policy' || entry === 'f\texpired' || entry === 'f\tnot_ready' || entry === 'f\toperation_transition_conflict');
+    if (!line) throw new Error(`execution_reservation_result_not_found: ${output}`);
     const [allowed, decision] = line.split('\t');
     return [{ allowed: allowed === 't', decision }] as T[];
   },
