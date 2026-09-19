@@ -41,11 +41,16 @@ SQL
 done
 wait || true
 
+for n in 1 2; do
+  echo "==> reservation race session $n"
+  cat "/tmp/zenith-reservation-race-$n.out"
+done
+
 allows=0
 denied=0
 for n in 1 2; do
-  grep -q '|allow|' "/tmp/zenith-reservation-race-$n.out" && allows=$((allows+1)) || true
-  grep -Eq '|(deny_state|operation_transition_conflict)|' "/tmp/zenith-reservation-race-$n.out" && denied=$((denied+1)) || true
+  grep -Eq '(^|\n)[^|]*\|allow\|' "/tmp/zenith-reservation-race-$n.out" && allows=$((allows+1)) || true
+  grep -Eq '(^|\n)[^|]*\|(deny_state|operation_transition_conflict)\|' "/tmp/zenith-reservation-race-$n.out" && denied=$((denied+1)) || true
 done
 test "$allows" -eq 1
 test "$denied" -eq 1
