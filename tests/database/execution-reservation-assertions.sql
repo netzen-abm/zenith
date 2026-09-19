@@ -36,8 +36,8 @@ end $$;
 -- Expiry is authoritative and cannot reserve.
 insert into operations.operations(id,organisation_id,identity_id,idempotency_key,action,purpose,expires_at,state)
 values ('00000000-0000-0000-0000-0000000000e3','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000a2','reservation-expired','annotate','reservation test',clock_timestamp()+interval '1 millisecond','queued');
-perform pg_sleep(0.01);
-do $$ declare r record; begin
+select pg_sleep(0.01);
+do $ declare r record; begin
   select * into r from operations.reserve_execution('00000000-0000-0000-0000-0000000000e3');
   if r.allowed or r.decision <> 'expired' or r.state <> 'queued' then raise exception 'expiry reservation failed closed'; end if;
 end $$;
