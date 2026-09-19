@@ -60,7 +60,7 @@ end
 $;
 
 -- Canonical transition remains the permitted lifecycle path.
-perform operations.transition(
+select operations.transition(
   '00000000-0000-0000-0000-0000000000f2','created','authorized'
 );
 
