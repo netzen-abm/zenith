@@ -156,6 +156,15 @@ jobs:
           chmod +x tests/database/fresh-db-reconciliation.sh
           tests/database/fresh-db-reconciliation.sh
 
+      - name: Verify Node.js runtime for database-backed coordinator test
+        run: node --version
+
+      - name: Run PostgreSQL-backed execution coordinator E2E
+        shell: bash
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/zenith
+        run: node --experimental-strip-types tests/database/postgres-execution-coordinator-e2e.test.ts
+
       - name: Run operations concurrency assertions (mandatory)
         shell: bash
         env:
