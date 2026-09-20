@@ -2,7 +2,9 @@ import { strict as assert } from 'node:assert';
 import { promisify } from 'node:util';
 import { execFile } from 'node:child_process';
 import { ExecutionCoordinator } from '../../packages/operation-queue/src/execution-coordinator.ts';
+import { PostgresCoreAuthorization } from '../../packages/operation-queue/src/postgres-core-authorization.ts';
 import { PostgresExecutionReservation } from '../../packages/operation-queue/src/postgres-execution-reservation.ts';
+import { PostgresExecutionOutcomeRecorder } from '../../packages/operation-queue/src/postgres-execution-outcome-recorder.ts';
 
 const execFileAsync = promisify(execFile);
 const dbUrl = process.env.DATABASE_URL;
@@ -38,6 +40,8 @@ insert into core.resources(id,organisation_id,resource_type,title,epistemic_stat
 insert into core.resource_memberships(resource_id,identity_id,membership_role)
   values ('${resourceId}','${identityId}','owner')
   on conflict (resource_id,identity_id) do nothing;
+delete from operations.execution_outbox where operation_id = '${operationId}';
+delete from operations.execution_outcomes where operation_id = '${operationId}';
 delete from operations.operations where id = '${operationId}';
 insert into operations.operations(
   id,organisation_id,identity_id,idempotency_key,action,resource_id,purpose,expires_at
@@ -84,29 +88,69 @@ console.log('Coordinator E2E reservation probe:', reservationProbe);
 
 const db = {
   async query<T extends Record<string, unknown>>(sql: string, params: readonly unknown[]) {
-    const id = String(params[0]).replaceAll("'", "''");
-    const query = `
-begin;
+    if (sql.includes('core.authorize_capability')) {
+      const action = String(params[0]).replaceAll("'", "''");
+      const resource = params[1] === null ? 'null' : "'" + String(params[1]).replaceAll("'", "''") + "'::uuid";
+      const purpose = String(params[2]).replaceAll("'", "''");
+      const output = await psql(`begin;
 set local role authenticated;
 select set_config('request.jwt.claim.sub','${authUserId}',true);
 select set_config('app.identity_id','${identityId}',true);
 select set_config('app.organisation_id','${organisationId}',true);
-select allowed, decision from operations.reserve_execution('${id}'::uuid);
-commit;`;
-    const output = await psql(query);
-    const line = output.split('\n').find((entry) => entry === 't\tallow' || entry === 'f\tdeny_state' || entry === 'f\tdeny_policy' || entry === 'f\texpired' || entry === 'f\tnot_ready' || entry === 'f\toperation_transition_conflict');
+select allowed::text || '|' || decision from core.authorize_capability('${action}',${resource},'${purpose}');
+rollback;`);
+      const line = output.split('\n').find((entry) => /^true\|(?:allow|deny)/.test(entry) || /^false\|(?:allow|deny)/.test(entry));
+      if (!line) throw new Error(`core_authorization_result_not_found: ${output}`);
+      const [allowed, decision] = line.split('|');
+      return [{ allowed: allowed === 'true', decision }] as T[];
+    }
+    if (sql.includes('operations.record_execution_outcome')) {
+      const [id, attempt, outcome, errorCode, resultRef, resultHash, occurredAt] = params;
+      const esc = (value: unknown) => value === null || value === undefined ? 'null' : "'" + String(value).replaceAll("'", "''") + "'";
+      const output = await psql(`begin;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','${authUserId}',true);
+select set_config('app.identity_id','${identityId}',true);
+select set_config('app.organisation_id','${organisationId}',true);
+select recorded::text || '|' || decision from operations.record_execution_outcome('${String(id)}'::uuid, ${Number(attempt)}, ${esc(outcome)}, ${esc(errorCode)}, ${esc(resultRef)}, ${esc(resultHash)}, ${esc(occurredAt)}::timestamptz);
+commit;`);
+      const line = output.split('\n').find((entry) => /^true\|/.test(entry) || /^false\|/.test(entry));
+      if (!line) throw new Error(`execution_outcome_result_not_found: ${output}`);
+      const [recorded, decision] = line.split('|');
+      return [{ recorded: recorded === 'true', decision }] as T[];
+    }
+    const id = String(params[0]).replaceAll("'", "''");
+    const output = await psql(`begin;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','${authUserId}',true);
+select set_config('app.identity_id','${identityId}',true);
+select set_config('app.organisation_id','${organisationId}',true);
+select allowed::text || '|' || decision || '|' || coalesce(attempt_count::text,'null')
+from operations.reserve_execution('${id}'::uuid);
+commit;`);
+    const line = output.split('\n').find((entry) => /^(true|false)\|/.test(entry));
     if (!line) throw new Error(`execution_reservation_result_not_found: ${output}`);
-    const [allowed, decision] = line.split('\t');
-    return [{ allowed: allowed === 't', decision }] as T[];
+    const [allowed, decision, attemptCount] = line.split('|');
+    return [{
+      allowed: allowed === 'true',
+      decision,
+      ...(attemptCount !== 'null' ? { attempt_count: Number(attemptCount) } : {}),
+    }] as T[];
   },
 };
 
 let handlerEntries = 0;
+const authorization = new PostgresCoreAuthorization(db);
 const reservation = new PostgresExecutionReservation(db);
+const outcomeRecorder = new PostgresExecutionOutcomeRecorder(db);
 const coordinator = new ExecutionCoordinator(
-  { authorize: async () => true },
+  authorization,
   reservation,
-  async () => { handlerEntries += 1; },
+  async () => {
+    handlerEntries += 1;
+    return { outcome: 'acknowledged' };
+  },
+  outcomeRecorder,
 );
 
 const results = await Promise.all([
@@ -129,7 +173,13 @@ assert.equal(results.filter(r => r.decision === 'deny_reservation').length, 1);
 assert.equal(handlerEntries, 1);
 
 const state = await psql(`select state || '|' || attempt_count from operations.operations where id = '${operationId}'`);
-assert.equal(state, 'in_flight|1');
+assert.equal(state, 'acknowledged|1');
+const outcomeCount = await psql(`select count(*) from operations.execution_outcomes where operation_id = '${operationId}'`);
+const outboxCount = await psql(`select count(*) from operations.execution_outbox where operation_id = '${operationId}'`);
+assert.equal(outcomeCount, '1');
+assert.equal(outboxCount, '1');
 
-await psql(`delete from operations.operations where id = '${operationId}'`);
+await psql(`delete from operations.execution_outbox where operation_id = '${operationId}';
+delete from operations.execution_outcomes where operation_id = '${operationId}';
+delete from operations.operations where id = '${operationId}'`);
 console.log('PostgreSQL-backed ExecutionCoordinator E2E assertions passed.');

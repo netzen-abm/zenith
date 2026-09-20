@@ -19,8 +19,8 @@ export class PostgresExecutionReservation implements ExecutionReservation {
   }
 
   async reserve(operationId: string): Promise<ReservationResult> {
-    const rows = await this.db.query<{ allowed: boolean; decision: string }>(
-      `select allowed, decision
+    const rows = await this.db.query<{ allowed: boolean; decision: string; attempt_count: number | null }>(
+      `select allowed, decision, attempt_count
          from operations.reserve_execution($1::uuid)`,
       [operationId],
     );
@@ -30,6 +30,7 @@ export class PostgresExecutionReservation implements ExecutionReservation {
     return {
       allowed: result.allowed === true,
       decision: result.decision,
+      ...(result.attempt_count == null ? {} : { attemptCount: result.attempt_count }),
     };
   }
 }

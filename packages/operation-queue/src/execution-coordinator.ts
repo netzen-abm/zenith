@@ -1,55 +1,54 @@
 import type { OperationEnvelope } from '../../contracts/src/operation.ts';
 
 export type ExecutionDecision = 'allow' | 'deny_authorization' | 'deny_reservation';
-
-export type ReservationResult = {
-  allowed: boolean;
-  decision: string;
+export type ReservationResult = { allowed: boolean; decision: string; attemptCount?: number };
+export type ExecutionOutcome = {
+  outcome: 'acknowledged' | 'retry_wait' | 'conflict' | 'rejected';
+  errorCode?: string; resultRef?: string; resultHash?: string; occurredAt?: string;
 };
-
-export interface ExecutionAuthorization {
-  authorize(operation: OperationEnvelope): Promise<boolean>;
+export type DurableOutcomeResult = { recorded: boolean; decision: string };
+export interface ExecutionAuthorization { authorize(operation: OperationEnvelope): Promise<boolean>; }
+export interface ExecutionReservation { reserve(operationId: string): Promise<ReservationResult>; }
+export interface ExecutionOutcomeRecorder {
+  record(operation: OperationEnvelope, outcome: ExecutionOutcome): Promise<DurableOutcomeResult>;
 }
+export type ExecutionHandler = (operation: OperationEnvelope) => Promise<ExecutionOutcome>;
+export type ExecutionResult = { executed: boolean; decision: ExecutionDecision };
 
-export interface ExecutionReservation {
-  reserve(operationId: string): Promise<ReservationResult>;
-}
-
-export type ExecutionHandler = (operation: OperationEnvelope) => Promise<void>;
-
-export type ExecutionResult = {
-  executed: boolean;
-  decision: ExecutionDecision;
-};
-
-/**
- * Coordinates execution without becoming an authorization authority.
- * The persistent reservation is the final concurrency gate before handler entry.
- * Keep the coordinator orchestration-only; authorization remains canonical in Core.
- */
 export class ExecutionCoordinator {
   private readonly authorization: ExecutionAuthorization;
   private readonly reservation: ExecutionReservation;
   private readonly handler: ExecutionHandler;
+  private readonly outcomeRecorder: ExecutionOutcomeRecorder;
 
   constructor(
     authorization: ExecutionAuthorization,
     reservation: ExecutionReservation,
     handler: ExecutionHandler,
+    outcomeRecorder: ExecutionOutcomeRecorder,
   ) {
     this.authorization = authorization;
     this.reservation = reservation;
     this.handler = handler;
+    this.outcomeRecorder = outcomeRecorder;
   }
 
   async execute(operation: OperationEnvelope): Promise<ExecutionResult> {
-    const authorized = await this.authorization.authorize(operation);
-    if (!authorized) return { executed: false, decision: 'deny_authorization' };
-
+    if (!await this.authorization.authorize(operation)) {
+      return { executed: false, decision: 'deny_authorization' };
+    }
     const reserved = await this.reservation.reserve(operation.operationId);
-    if (!reserved.allowed) return { executed: false, decision: 'deny_reservation' };
-
-    await this.handler(operation);
+    if (!reserved.allowed) {
+      return { executed: false, decision: 'deny_reservation' };
+    }
+    const executionOperation = reserved.attemptCount === undefined
+      ? operation
+      : { ...operation, attemptCount: reserved.attemptCount };
+    const outcome = await this.handler(executionOperation);
+    const durable = await this.outcomeRecorder.record(executionOperation, outcome);
+    if (!durable.recorded) {
+      throw new Error(`execution_outcome_not_durable:${durable.decision}`);
+    }
     return { executed: true, decision: 'allow' };
   }
 }
