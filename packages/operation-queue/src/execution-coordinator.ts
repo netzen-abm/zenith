@@ -7,6 +7,19 @@ export type ReservationResult = {
   decision: string;
 };
 
+export type ExecutionOutcome = {
+  outcome: 'acknowledged' | 'retry_wait' | 'conflict' | 'rejected';
+  errorCode?: string;
+  resultRef?: string;
+  resultHash?: string;
+  occurredAt?: string;
+};
+
+export type DurableOutcomeResult = {
+  recorded: boolean;
+  decision: string;
+};
+
 export interface ExecutionAuthorization {
   authorize(operation: OperationEnvelope): Promise<boolean>;
 }
@@ -15,31 +28,38 @@ export interface ExecutionReservation {
   reserve(operationId: string): Promise<ReservationResult>;
 }
 
-export type ExecutionHandler = (operation: OperationEnvelope) => Promise<void>;
+export interface ExecutionOutcomeRecorder {
+  record(
+    operation: OperationEnvelope,
+    outcome: ExecutionOutcome,
+  ): Promise<DurableOutcomeResult>;
+}
+
+export type ExecutionHandler = (
+  operation: OperationEnvelope,
+) => Promise<ExecutionOutcome>;
 
 export type ExecutionResult = {
   executed: boolean;
   decision: ExecutionDecision;
 };
 
-/**
- * Coordinates execution without becoming an authorization authority.
- * The persistent reservation is the final concurrency gate before handler entry.
- * Keep the coordinator orchestration-only; authorization remains canonical in Core.
- */
 export class ExecutionCoordinator {
   private readonly authorization: ExecutionAuthorization;
   private readonly reservation: ExecutionReservation;
   private readonly handler: ExecutionHandler;
+  private readonly outcomeRecorder: ExecutionOutcomeRecorder;
 
   constructor(
     authorization: ExecutionAuthorization,
     reservation: ExecutionReservation,
     handler: ExecutionHandler,
+    outcomeRecorder: ExecutionOutcomeRecorder,
   ) {
     this.authorization = authorization;
     this.reservation = reservation;
     this.handler = handler;
+    this.outcomeRecorder = outcomeRecorder;
   }
 
   async execute(operation: OperationEnvelope): Promise<ExecutionResult> {
@@ -49,7 +69,12 @@ export class ExecutionCoordinator {
     const reserved = await this.reservation.reserve(operation.operationId);
     if (!reserved.allowed) return { executed: false, decision: 'deny_reservation' };
 
-    await this.handler(operation);
+    const outcome = await this.handler(operation);
+    const durable = await this.outcomeRecorder.record(operation, outcome);
+    if (!durable.recorded) {
+      throw new Error(`execution_outcome_not_durable:${durable.decision}`);
+    }
+
     return { executed: true, decision: 'allow' };
   }
 }
