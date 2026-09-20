@@ -10,12 +10,12 @@ export type AuthorizationSqlExecutor = {
   ): Promise<T[]>;
 };
 
-/**
- * Adapter to the canonical Core authorization boundary.
- * SQL details stay here; ExecutionCoordinator remains policy-neutral.
- */
 export class PostgresCoreAuthorization implements ExecutionAuthorization {
-  constructor(private readonly db: AuthorizationSqlExecutor) {}
+  private readonly db: AuthorizationSqlExecutor;
+
+  constructor(db: AuthorizationSqlExecutor) {
+    this.db = db;
+  }
 
   async authorize(operation: OperationEnvelope): Promise<boolean> {
     const rows = await this.db.query<AuthorizationRow>(
