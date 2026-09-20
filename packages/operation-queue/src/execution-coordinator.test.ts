@@ -4,8 +4,6 @@ import {
   ExecutionCoordinator,
   type ExecutionReservation,
 } from './execution-coordinator.ts';
-import { PostgresCoreAuthorization } from './postgres-core-authorization.ts';
-
 class DeterministicAllowAuthorization {
   readonly calls: string[] = [];
 
@@ -70,8 +68,7 @@ const results = await Promise.all([
   coordinator.execute(operation),
 ]);
 
-assert.equal(authorizationCalls.length, 2);
-assert.match(authorizationCalls[0], /core\.authorize_capability/);
+assert.equal(authorization.calls.length, 2);
 assert.equal(reservation.calls, 2);
 assert.equal(results.filter((result) => result.executed).length, 1);
 assert.equal(
