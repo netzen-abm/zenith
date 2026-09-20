@@ -54,6 +54,8 @@ create policy evidence_annotation_requests_insert
 grant select, insert on core.evidence_annotation_requests to authenticated;
 
 create schema if not exists core_private;
+revoke all on schema core_private from public;
+grant usage on schema core_private to authenticated;
 
 create or replace function core_private.consume_evidence_annotation_request(
   p_request_id uuid
