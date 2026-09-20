@@ -99,7 +99,9 @@ select set_config('app.identity_id','${identityId}',true);
 select set_config('app.organisation_id','${organisationId}',true);
 select allowed::text || '|' || decision from core.authorize_capability('${action}',${resource},'${purpose}');
 rollback;`);
-      const [allowed, decision] = output.split('|');
+      const line = output.split('\n').find((entry) => /^true\|(?:allow|deny)/.test(entry) || /^false\|(?:allow|deny)/.test(entry));
+      if (!line) throw new Error(`core_authorization_result_not_found: ${output}`);
+      const [allowed, decision] = line.split('|');
       return [{ allowed: allowed === 'true', decision }] as T[];
     }
     if (sql.includes('operations.record_execution_outcome')) {
