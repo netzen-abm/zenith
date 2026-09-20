@@ -9,14 +9,15 @@ org="00000000-0000-0000-0000-0000000000b1"
 identity="00000000-0000-0000-0000-0000000000b2"
 resource="00000000-0000-0000-0000-0000000000d2"
 
+# Fixture setup.
 "${psql_args[@]}" <<SQL
 begin;
 insert into auth.users(id) values ('$auth_user') on conflict do nothing;
 insert into core.organisations(id,name,slug) values ('$org','Outcome Concurrency','outcome-concurrency') on conflict do nothing;
 insert into core.identities(id,auth_user_id,display_name) values ('$identity','$auth_user','Outcome Concurrency Identity') on conflict do nothing;
 insert into core.identity_organisation_memberships(identity_id,organisation_id,membership_role) values ('$identity','$org','member') on conflict do nothing;
-insert into core.resources(id,organisation_id,resource_type,title,epistemic_status,sensitivity) values ('$resource','$org','test','Outcome Concurrency Resource','documented','public') on conflict do nothing;
-insert into core.resource_memberships(resource_id,identity_id,membership_role) values ('$resource','$identity','owner') on conflict do nothing;
+insert into core.resources(id,organisation_id,resource_type,title,epistemic_status,sensitivity) values ('$resource','$org','test','Outcome Concurrency Resource','documented','public') on conflict (id) do nothing;
+insert into core.resource_memberships(resource_id,identity_id,membership_role) values ('$resource','$identity','owner') on conflict (resource_id,identity_id) do nothing;
 insert into operations.operations(id,organisation_id,identity_id,idempotency_key,action,resource_id,purpose,expires_at)
 values ('$op','$org','$identity','outcome-concurrency','annotate','$resource','outcome concurrency',clock_timestamp()+interval '1 hour')
 on conflict (id) do nothing;
@@ -58,8 +59,11 @@ sleep 0.1
 touch "$tmp/go"
 wait
 
+# Exactly one writer must record. The losing writer may observe either the
+# duplicate unique-attempt guard or the already-advanced lifecycle state;
+# both are fail-closed and prove that no second outcome was accepted.
 recorded=$(awk -F'|' '$1 == "t" && $2 == "recorded" { n++ } END { print n + 0 }' "$tmp"/1 "$tmp"/2)
-awk -F'|' 'NF >= 2 && ($1 != "t" || ($2 != "recorded" && $2 != "attempt_already_recorded")) { exit 1 }' "$tmp"/1 "$tmp"/2 || {
+awk -F'|' 'NF >= 2 && ($1 != "t" || ($2 != "recorded" && $2 != "attempt_already_recorded" && $2 != "operation_not_in_flight")) { exit 1 }' "$tmp"/1 "$tmp"/2 || {
   echo "unexpected concurrent outcome decision"
   cat "$tmp"/1 "$tmp"/2
   exit 1
