@@ -117,6 +117,9 @@ const coordinator = new ExecutionCoordinator(
   new PostgresExecutionOutcomeRecorder(db),
 );
 
+const adapter = new PostgresCoreAuthorization(db);
+const adapterDecision = await adapter.authorize({ operationId: ids.operation, idempotencyKey: 'evidence-annotation-e2e', action: 'annotate', resourceId: ids.resource, purpose: 'evidence annotation e2e', state: 'queued', createdAt: new Date().toISOString(), attemptCount: 0, payloadRef: ids.request });
+console.log('Evidence Annotation adapter authorization:', adapterDecision);
 const preflight = await psql(`
 begin;
 set local role authenticated;
