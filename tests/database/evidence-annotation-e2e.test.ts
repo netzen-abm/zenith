@@ -117,6 +117,18 @@ const coordinator = new ExecutionCoordinator(
   new PostgresExecutionOutcomeRecorder(db),
 );
 
+const preflight = await psql(`
+begin;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','${ids.authUser}',true);
+select set_config('app.identity_id','${ids.identity}',true);
+select set_config('app.organisation_id','${ids.organisation}',true);
+select coalesce(core.current_identity_id()::text,'null') || '|' ||
+       coalesce(core.current_organisation_id()::text,'null') || '|' ||
+       coalesce((select allowed from core.authorize_capability('annotate','${ids.resource}'::uuid,'evidence annotation e2e') limit 1)::text,'null') || '|' ||
+       coalesce((select decision from core.authorize_capability('annotate','${ids.resource}'::uuid,'evidence annotation e2e') limit 1),'null');
+rollback;`);
+console.log('Evidence Annotation preflight:', preflight);
 const result = await coordinator.execute({
   operationId: ids.operation, idempotencyKey: 'evidence-annotation-e2e',
   action: 'annotate', resourceId: ids.resource, purpose: 'evidence annotation e2e',
