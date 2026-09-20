@@ -9,7 +9,6 @@ org="00000000-0000-0000-0000-0000000000b1"
 identity="00000000-0000-0000-0000-0000000000b2"
 resource="00000000-0000-0000-0000-0000000000d2"
 
-# Fixture setup.
 "${psql_args[@]}" <<SQL
 begin;
 insert into auth.users(id) values ('$auth_user') on conflict do nothing;
@@ -59,11 +58,11 @@ sleep 0.1
 touch "$tmp/go"
 wait
 
-# Exactly one writer must record. The losing writer may observe either the
-# duplicate unique-attempt guard or the already-advanced lifecycle state;
-# both are fail-closed and prove that no second outcome was accepted.
-recorded=$(awk -F'|' '$1 == "t" && $2 == "recorded" { n++ } END { print n + 0 }' "$tmp"/1 "$tmp"/2)
-awk -F'|' 'NF >= 2 && ($1 != "t" || ($2 != "recorded" && $2 != "attempt_already_recorded" && $2 != "operation_not_in_flight")) { exit 1 }' "$tmp"/1 "$tmp"/2 || {
+# The SQL function returns a boolean text value (true/false), not PostgreSQL's
+# boolean short form (t/f). Exactly one writer must record; the loser must
+# fail closed with a known decision.
+recorded=$(awk -F'|' '$1 == "true" && $2 == "recorded" { n++ } END { print n + 0 }' "$tmp"/1 "$tmp"/2)
+awk -F'|' 'NF >= 2 && ($1 != "true" && $1 != "false" || ($2 != "recorded" && $2 != "attempt_already_recorded" && $2 != "operation_not_in_flight")) { exit 1 }' "$tmp"/1 "$tmp"/2 || {
   echo "unexpected concurrent outcome decision"
   cat "$tmp"/1 "$tmp"/2
   exit 1
