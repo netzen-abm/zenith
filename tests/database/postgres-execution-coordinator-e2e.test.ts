@@ -114,7 +114,9 @@ select set_config('app.identity_id','${identityId}',true);
 select set_config('app.organisation_id','${organisationId}',true);
 select recorded::text || '|' || decision from operations.record_execution_outcome('${String(id)}'::uuid, ${Number(attempt)}, ${esc(outcome)}, ${esc(errorCode)}, ${esc(resultRef)}, ${esc(resultHash)}, ${esc(occurredAt)}::timestamptz);
 commit;`);
-      const [recorded, decision] = output.split('\t');
+      const line = output.split('\n').find((entry) => /^true\|/.test(entry) || /^false\|/.test(entry));
+      if (!line) throw new Error(`execution_outcome_result_not_found: ${output}`);
+      const [recorded, decision] = line.split('|');
       return [{ recorded: recorded === 'true', decision }] as T[];
     }
     const id = String(params[0]).replaceAll("'", "''");
