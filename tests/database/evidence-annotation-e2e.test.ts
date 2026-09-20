@@ -43,7 +43,7 @@ delete from core.evidence_annotation_requests where id = '${ids.request}';
 delete from operations.execution_outbox where operation_id = '${ids.operation}';
 delete from operations.execution_outcomes where operation_id = '${ids.operation}';
 delete from operations.operations where id = '${ids.operation}';
-insert into core.evidence_annotation_requests(id,organisation_id,identity_id,resource_id,source_id,evidence_type,excerpt,evidence_payload)
+insert into core.evidence_annotation_requests(id,organisation_id,identity_id,resource_id,source_id,evidence_type,excerpt,evidence_payload,sensitivity)
 values ('${ids.request}','${ids.organisation}','${ids.identity}','${ids.resource}','${ids.source}','field_observation','authenticated annotation','{"test":true}','controlled');
 insert into operations.operations(id,organisation_id,identity_id,idempotency_key,action,resource_id,purpose,expires_at,payload_ref)
 values ('${ids.operation}','${ids.organisation}','${ids.identity}','evidence-annotation-e2e','annotate','${ids.resource}','evidence annotation e2e',clock_timestamp()+interval '10 minutes','${ids.request}');
