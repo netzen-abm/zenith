@@ -1,7 +1,7 @@
 import type { OperationEnvelope } from '../../contracts/src/operation.ts';
 
 export type ExecutionDecision = 'allow' | 'deny_authorization' | 'deny_reservation';
-export type ReservationResult = { allowed: boolean; decision: string };
+export type ReservationResult = { allowed: boolean; decision: string; attemptCount?: number };
 export type ExecutionOutcome = {
   outcome: 'acknowledged' | 'retry_wait' | 'conflict' | 'rejected';
   errorCode?: string; resultRef?: string; resultHash?: string; occurredAt?: string;
@@ -40,8 +40,11 @@ export class ExecutionCoordinator {
     if (!(await this.reservation.reserve(operation.operationId)).allowed) {
       return { executed: false, decision: 'deny_reservation' };
     }
-    const outcome = await this.handler(operation);
-    const durable = await this.outcomeRecorder.record(operation, outcome);
+    const executionOperation = reserved.attemptCount === undefined
+      ? operation
+      : { ...operation, attemptCount: reserved.attemptCount };
+    const outcome = await this.handler(executionOperation);
+    const durable = await this.outcomeRecorder.record(executionOperation, outcome);
     if (!durable.recorded) {
       throw new Error(`execution_outcome_not_durable:${durable.decision}`);
     }
