@@ -2,6 +2,7 @@ import { strict as assert } from 'node:assert';
 import { promisify } from 'node:util';
 import { execFile } from 'node:child_process';
 import { ExecutionCoordinator } from '../../packages/operation-queue/src/execution-coordinator.ts';
+import { PostgresCoreAuthorization } from '../../packages/operation-queue/src/postgres-core-authorization.ts';
 import { PostgresExecutionReservation } from '../../packages/operation-queue/src/postgres-execution-reservation.ts';
 
 const execFileAsync = promisify(execFile);
@@ -23,29 +24,14 @@ async function psql(sql: string): Promise<string> {
 
 await psql(`
 insert into auth.users(id) values ('${authUserId}') on conflict do nothing;
-insert into core.organisations(id,name,slug)
-  values ('${organisationId}','Coordinator E2E','coordinator-e2e')
-  on conflict (id) do nothing;
-insert into core.identities(id,auth_user_id,display_name)
-  values ('${identityId}','${authUserId}','Coordinator E2E Identity')
-  on conflict (id) do nothing;
-insert into core.identity_organisation_memberships(identity_id,organisation_id,membership_role)
-  values ('${identityId}','${organisationId}','member')
-  on conflict (identity_id,organisation_id) do nothing;
-insert into core.resources(id,organisation_id,resource_type,title,epistemic_status,sensitivity)
-  values ('${resourceId}','${organisationId}','test','Coordinator E2E Resource','documented','public')
-  on conflict (id) do nothing;
-insert into core.resource_memberships(resource_id,identity_id,membership_role)
-  values ('${resourceId}','${identityId}','owner')
-  on conflict (resource_id,identity_id) do nothing;
+insert into core.organisations(id,name,slug) values ('${organisationId}','Coordinator E2E','coordinator-e2e') on conflict (id) do nothing;
+insert into core.identities(id,auth_user_id,display_name) values ('${identityId}','${authUserId}','Coordinator E2E Identity') on conflict (id) do nothing;
+insert into core.identity_organisation_memberships(identity_id,organisation_id,membership_role) values ('${identityId}','${organisationId}','member') on conflict (identity_id,organisation_id) do nothing;
+insert into core.resources(id,organisation_id,resource_type,title,epistemic_status,sensitivity) values ('${resourceId}','${organisationId}','test','Coordinator E2E Resource','documented','public') on conflict (id) do nothing;
+insert into core.resource_memberships(resource_id,identity_id,membership_role) values ('${resourceId}','${identityId}','owner') on conflict (resource_id,identity_id) do nothing;
 delete from operations.operations where id = '${operationId}';
-insert into operations.operations(
-  id,organisation_id,identity_id,idempotency_key,action,resource_id,purpose,expires_at
-) values (
-  '${operationId}','${organisationId}','${identityId}','coordinator-e2e',
-  'annotate','${resourceId}','coordinator e2e',clock_timestamp()+interval '10 minutes'
-);
-
+insert into operations.operations(id,organisation_id,identity_id,idempotency_key,action,resource_id,purpose,expires_at)
+values ('${operationId}','${organisationId}','${identityId}','coordinator-e2e','annotate','${resourceId}','coordinator e2e',clock_timestamp()+interval '10 minutes');
 begin;
 set local role authenticated;
 select set_config('request.jwt.claim.sub','${authUserId}',true);
@@ -62,38 +48,36 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub','${authUserId}',true);
 select set_config('app.identity_id','${identityId}',true);
 select set_config('app.organisation_id','${organisationId}',true);
-select coalesce(core.current_identity_id()::text,'null') || '|' ||
-       coalesce(core.current_organisation_id()::text,'null') || '|' ||
-       coalesce((select allowed from core.authorize_capability('annotate','${resourceId}'::uuid,'coordinator e2e') limit 1)::text,'null') || '|' ||
-       coalesce((select decision from core.authorize_capability('annotate','${resourceId}'::uuid,'coordinator e2e') limit 1),'null');
+select core.current_identity_id()::text || '|' || core.current_organisation_id()::text || '|' ||
+       (select allowed::text || ':' || decision from core.authorize_capability('annotate','${resourceId}'::uuid,'coordinator e2e') limit 1);
 rollback;`);
 console.log('Coordinator E2E auth context:', context);
-const queuedState = await psql("select state || '|' || attempt_count from operations.operations where id = '"+operationId+"'");
-console.log('Coordinator E2E queued state:', queuedState);
-assert.equal(queuedState, 'queued|0');
-const reservationProbe = await psql(`
-begin;
+assert.match(context, new RegExp(`${identityId}\\|${organisationId}\\|true:allow`));
+
+const db = {
+  async query<T extends Record<string, unknown>>(sql: string, params: readonly unknown[]) {
+    if (sql.includes('core.authorize_capability')) {
+      const action = String(params[0]).replaceAll("'", "''");
+      const resource = params[1] === null ? 'null' : "'" + String(params[1]).replaceAll("'", "''") + "'::uuid";
+      const purpose = String(params[2]).replaceAll("'", "''");
+      const output = await psql(`begin;
 set local role authenticated;
 select set_config('request.jwt.claim.sub','${authUserId}',true);
 select set_config('app.identity_id','${identityId}',true);
 select set_config('app.organisation_id','${organisationId}',true);
-select coalesce((select state from operations.operations where id='${operationId}'),'missing') || '|' ||
-       coalesce((select allowed::text || ':' || decision from operations.reserve_execution('${operationId}'::uuid)),'null');
+select allowed::text || E'\\t' || decision from core.authorize_capability('${action}',${resource},'${purpose}');
 rollback;`);
-console.log('Coordinator E2E reservation probe:', reservationProbe);
-
-const db = {
-  async query<T extends Record<string, unknown>>(sql: string, params: readonly unknown[]) {
+      const [allowed, decision] = output.split('\t');
+      return [{ allowed: allowed === 'true', decision }] as T[];
+    }
     const id = String(params[0]).replaceAll("'", "''");
-    const query = `
-begin;
+    const output = await psql(`begin;
 set local role authenticated;
 select set_config('request.jwt.claim.sub','${authUserId}',true);
 select set_config('app.identity_id','${identityId}',true);
 select set_config('app.organisation_id','${organisationId}',true);
 select allowed, decision from operations.reserve_execution('${id}'::uuid);
-commit;`;
-    const output = await psql(query);
+commit;`);
     const line = output.split('\n').find((entry) => entry === 't\tallow' || entry === 'f\tdeny_state' || entry === 'f\tdeny_policy' || entry === 'f\texpired' || entry === 'f\tnot_ready' || entry === 'f\toperation_transition_conflict');
     if (!line) throw new Error(`execution_reservation_result_not_found: ${output}`);
     const [allowed, decision] = line.split('\t');
@@ -102,24 +86,23 @@ commit;`;
 };
 
 let handlerEntries = 0;
+const authorization = new PostgresCoreAuthorization(db);
 const reservation = new PostgresExecutionReservation(db);
 const coordinator = new ExecutionCoordinator(
-  { authorize: async () => true },
+  authorization,
   reservation,
   async () => { handlerEntries += 1; },
 );
 
+const operation = {
+  operationId, idempotencyKey: 'coordinator-e2e', action: 'annotate',
+  resourceId, purpose: 'coordinator e2e', state: 'queued' as const,
+  createdAt: new Date().toISOString(), attemptCount: 0,
+};
+
 const results = await Promise.all([
-  coordinator.execute({
-    operationId, idempotencyKey: 'coordinator-e2e', action: 'annotate',
-    resourceId, purpose: 'coordinator e2e', state: 'queued',
-    createdAt: new Date().toISOString(), attemptCount: 0,
-  }),
-  coordinator.execute({
-    operationId, idempotencyKey: 'coordinator-e2e', action: 'annotate',
-    resourceId, purpose: 'coordinator e2e', state: 'queued',
-    createdAt: new Date().toISOString(), attemptCount: 0,
-  }),
+  coordinator.execute(operation),
+  coordinator.execute(operation),
 ]);
 
 console.log('Coordinator E2E results:', JSON.stringify(results));
