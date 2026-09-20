@@ -26,7 +26,7 @@ BEGIN
     SELECT 1 FROM pg_proc p
     JOIN pg_namespace n ON n.oid=p.pronamespace
     WHERE n.nspname='core_private' AND p.proname='consume_evidence_annotation_request'
-      AND p.prosecdef AND p.proconfig @> ARRAY['search_path=']
+      AND p.prosecdef AND p.proconfig @> ARRAY['search_path=""']
   ) THEN RAISE EXCEPTION 'annotation mutation function security boundary missing'; END IF;
 
   IF has_function_privilege('authenticated', 'core_private.consume_evidence_annotation_request(uuid)', 'EXECUTE') IS NOT TRUE
