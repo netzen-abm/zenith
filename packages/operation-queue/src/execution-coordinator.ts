@@ -37,7 +37,8 @@ export class ExecutionCoordinator {
     if (!await this.authorization.authorize(operation)) {
       return { executed: false, decision: 'deny_authorization' };
     }
-    if (!(await this.reservation.reserve(operation.operationId)).allowed) {
+    const reserved = await this.reservation.reserve(operation.operationId);
+    if (!reserved.allowed) {
       return { executed: false, decision: 'deny_reservation' };
     }
     const executionOperation = reserved.attemptCount === undefined
