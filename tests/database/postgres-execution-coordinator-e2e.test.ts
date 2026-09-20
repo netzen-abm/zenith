@@ -97,9 +97,9 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub','${authUserId}',true);
 select set_config('app.identity_id','${identityId}',true);
 select set_config('app.organisation_id','${organisationId}',true);
-select allowed::text || E'\\t' || decision from core.authorize_capability('${action}',${resource},'${purpose}');
+select allowed::text || '|' || decision from core.authorize_capability('${action}',${resource},'${purpose}');
 rollback;`);
-      const [allowed, decision] = output.split('\t');
+      const [allowed, decision] = output.split('|');
       return [{ allowed: allowed === 'true', decision }] as T[];
     }
     if (sql.includes('operations.record_execution_outcome')) {
@@ -110,7 +110,7 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub','${authUserId}',true);
 select set_config('app.identity_id','${identityId}',true);
 select set_config('app.organisation_id','${organisationId}',true);
-select recorded::text || E'\\t' || decision from operations.record_execution_outcome('${String(id)}'::uuid, ${Number(attempt)}, ${esc(outcome)}, ${esc(errorCode)}, ${esc(resultRef)}, ${esc(resultHash)}, ${esc(occurredAt)}::timestamptz);
+select recorded::text || '|' || decision from operations.record_execution_outcome('${String(id)}'::uuid, ${Number(attempt)}, ${esc(outcome)}, ${esc(errorCode)}, ${esc(resultRef)}, ${esc(resultHash)}, ${esc(occurredAt)}::timestamptz);
 commit;`);
       const [recorded, decision] = output.split('\t');
       return [{ recorded: recorded === 'true', decision }] as T[];
