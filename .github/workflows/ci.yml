@@ -165,6 +165,12 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/zenith
         run: node --experimental-strip-types tests/database/postgres-execution-coordinator-e2e.test.ts
 
+      - name: Run Evidence Annotation PostgreSQL E2E (mandatory)
+        shell: bash
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/zenith
+        run: node --experimental-strip-types tests/database/evidence-annotation-e2e.test.ts
+
       - name: Run operations concurrency assertions (mandatory)
         shell: bash
         env:
