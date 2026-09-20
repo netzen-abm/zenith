@@ -125,8 +125,7 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub','${authUserId}',true);
 select set_config('app.identity_id','${identityId}',true);
 select set_config('app.organisation_id','${organisationId}',true);
-select allowed::text || '|' || decision || '|' ||
-       coalesce((select attempt_count::text from operations.operations where id='${id}'),'null')
+select allowed::text || '|' || decision || '|' || coalesce(attempt_count::text,'null')
 from operations.reserve_execution('${id}'::uuid);
 commit;`);
     const line = output.split('\n').find((entry) => /^(true|false)\|/.test(entry));
