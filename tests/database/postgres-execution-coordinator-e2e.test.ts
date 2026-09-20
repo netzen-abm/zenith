@@ -135,7 +135,7 @@ commit;`);
     return [{
       allowed: allowed === 'true',
       decision,
-      ...(attemptCount !== 'null' ? { attemptCount: Number(attemptCount) } : {}),
+      ...(attemptCount !== 'null' ? { attempt_count: Number(attemptCount) } : {}),
     }] as T[];
   },
 };
