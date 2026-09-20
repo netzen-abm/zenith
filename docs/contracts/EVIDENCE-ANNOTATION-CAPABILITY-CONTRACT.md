@@ -19,7 +19,7 @@ It is a proving capability, not a second policy engine.
 - **Core authorization** remains the canonical policy authority through `core.authorize_capability`.
 - **Operation lifecycle** remains owned by `operations.transition` and `operations.reserve_execution`.
 - **Request payload** is durable and referenced by `operations.operations.payload_ref`; protected payload fields are not copied into the operation audit/outbox.
-- **Evidence mutation** is owned by `core.consume_evidence_annotation_request`.
+- **Evidence mutation** is owned by `core_private.consume_evidence_annotation_request`.
 - **Execution durability** remains owned by `operations.record_execution_outcome`.
 - **Outbox** remains downstream delivery infrastructure, not authorization.
 
