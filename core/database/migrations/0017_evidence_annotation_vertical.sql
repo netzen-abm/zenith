@@ -53,7 +53,9 @@ create policy evidence_annotation_requests_insert
 
 grant select, insert on core.evidence_annotation_requests to authenticated;
 
-create or replace function core.consume_evidence_annotation_request(
+create schema if not exists core_private;
+
+create or replace function core_private.consume_evidence_annotation_request(
   p_request_id uuid
 )
 returns table (
@@ -116,11 +118,11 @@ begin
 end;
 $$;
 
-revoke execute on function core.consume_evidence_annotation_request(uuid) from public;
-revoke execute on function core.consume_evidence_annotation_request(uuid) from anon;
-grant execute on function core.consume_evidence_annotation_request(uuid) to authenticated;
+revoke execute on function core_private.consume_evidence_annotation_request(uuid) from public;
+revoke execute on function core_private.consume_evidence_annotation_request(uuid) from anon;
+grant execute on function core_private.consume_evidence_annotation_request(uuid) to authenticated;
 
 comment on table core.evidence_annotation_requests is
   'Durable domain request payload for the evidence annotation capability; operation.payload_ref points to the request.';
-comment on function core.consume_evidence_annotation_request(uuid) is
+comment on function core_private.consume_evidence_annotation_request(uuid) is
   'Canonical protected evidence mutation boundary for the evidence annotation capability.';
