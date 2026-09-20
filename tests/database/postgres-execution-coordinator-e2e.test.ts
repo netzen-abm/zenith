@@ -40,6 +40,8 @@ insert into core.resources(id,organisation_id,resource_type,title,epistemic_stat
 insert into core.resource_memberships(resource_id,identity_id,membership_role)
   values ('${resourceId}','${identityId}','owner')
   on conflict (resource_id,identity_id) do nothing;
+delete from operations.execution_outbox where operation_id = '${operationId}';
+delete from operations.execution_outcomes where operation_id = '${operationId}';
 delete from operations.operations where id = '${operationId}';
 insert into operations.operations(
   id,organisation_id,identity_id,idempotency_key,action,resource_id,purpose,expires_at
