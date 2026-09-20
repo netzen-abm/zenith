@@ -84,7 +84,7 @@ export class EvidenceAnnotationCapability {
 
   private async handle(operation: OperationEnvelope) {
     const rows = await this.db.transaction(db => db.query(
-      'select evidence_id, decision from core.consume_evidence_annotation_request($1::uuid)',
+      'select evidence_id, decision from core_private.consume_evidence_annotation_request($1::uuid)',
       [operation.payloadRef],
     ));
     const result = rows[0];
