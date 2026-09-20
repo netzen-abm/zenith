@@ -155,10 +155,11 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub','${ids.outsiderAuth}',true);
 select set_config('app.identity_id','${ids.outsider}',true);
 select set_config('app.organisation_id','${ids.organisation}',true);
-select count(*) from core.evidence
+select count(*)::text from core.evidence
  where source_id = '${ids.source}' and resource_id = '${ids.resource}';
 rollback;`);
-assert.equal(outsiderRead.split('\\n').filter(line => /^\\d+$/.test(line)).at(-1), '0');
+const outsiderCount = outsiderRead.match(/(?:^|\\n)(\\d+)\\n?$/)?.[1];
+assert.equal(outsiderCount, '0');
 
 const directMutation = await psql(`
 begin;
