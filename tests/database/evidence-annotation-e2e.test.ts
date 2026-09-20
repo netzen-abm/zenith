@@ -158,7 +158,7 @@ select set_config('app.organisation_id','${ids.organisation}',true);
 select count(*) from core.evidence
  where source_id = '${ids.source}' and resource_id = '${ids.resource}';
 rollback;`);
-assert.equal(outsiderRead.split('\\n').filter(Boolean).at(-2), '0');
+assert.equal(outsiderRead.split('\\n').filter(line => /^\\d+$/.test(line)).at(-1), '0');
 
 const directMutation = await psql(`
 begin;
