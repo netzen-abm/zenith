@@ -125,12 +125,18 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub','${authUserId}',true);
 select set_config('app.identity_id','${identityId}',true);
 select set_config('app.organisation_id','${organisationId}',true);
-select allowed, decision from operations.reserve_execution('${id}'::uuid);
+select allowed::text || '|' || decision || '|' ||
+       coalesce((select attempt_count::text from operations.operations where id='${id}'),'null')
+from operations.reserve_execution('${id}'::uuid);
 commit;`);
-    const line = output.split('\n').find((entry) => entry === 't\tallow' || entry === 'f\tdeny_state' || entry === 'f\tdeny_policy' || entry === 'f\texpired' || entry === 'f\tnot_ready' || entry === 'f\toperation_transition_conflict');
+    const line = output.split('\n').find((entry) => /^(true|false)\|/.test(entry));
     if (!line) throw new Error(`execution_reservation_result_not_found: ${output}`);
-    const [allowed, decision] = line.split('\t');
-    return [{ allowed: allowed === 't', decision }] as T[];
+    const [allowed, decision, attemptCount] = line.split('|');
+    return [{
+      allowed: allowed === 'true',
+      decision,
+      ...(attemptCount !== 'null' ? { attemptCount: Number(attemptCount) } : {}),
+    }] as T[];
   },
 };
 
@@ -174,5 +180,7 @@ const outboxCount = await psql(`select count(*) from operations.execution_outbox
 assert.equal(outcomeCount, '1');
 assert.equal(outboxCount, '1');
 
-await psql(`delete from operations.operations where id = '${operationId}'`);
+await psql(`delete from operations.execution_outbox where operation_id = '${operationId}';
+delete from operations.execution_outcomes where operation_id = '${operationId}';
+delete from operations.operations where id = '${operationId}'`);
 console.log('PostgreSQL-backed ExecutionCoordinator E2E assertions passed.');
