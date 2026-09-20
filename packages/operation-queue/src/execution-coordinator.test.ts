@@ -1,6 +1,7 @@
 import { strict as assert } from 'node:assert';
 import type { OperationEnvelope } from '../../contracts/src/operation.ts';
 import { ExecutionCoordinator, type ExecutionReservation } from './execution-coordinator.ts';
+import { PostgresCoreAuthorization } from './postgres-core-authorization.ts';
 
 const operation: OperationEnvelope = {
   operationId: 'op-concurrent-1', idempotencyKey: 'idem-1', action: 'test.execute',
@@ -22,10 +23,18 @@ class ExactlyOneReservation implements ExecutionReservation {
   get calls() { return this.contenders; }
 }
 
+const authorizationCalls: string[] = [];
+const authorization = new PostgresCoreAuthorization({
+  async query(sql, params) {
+    authorizationCalls.push(String(sql) + '|' + params.join('|'));
+    return [{ allowed: true, decision: 'allow' }];
+  },
+});
+
 let handlerEntries = 0;
 const reservation = new ExactlyOneReservation();
 const coordinator = new ExecutionCoordinator(
-  { authorize: async () => true },
+  authorization,
   reservation,
   async () => { handlerEntries += 1; },
 );
@@ -35,6 +44,8 @@ const results = await Promise.all([
   coordinator.execute(operation),
 ]);
 
+assert.equal(authorizationCalls.length, 2);
+assert.match(authorizationCalls[0], /core\.authorize_capability/);
 assert.equal(reservation.calls, 2);
 assert.equal(results.filter(result => result.executed).length, 1);
 assert.equal(results.filter(result => result.decision === 'deny_reservation').length, 1);
@@ -42,10 +53,10 @@ assert.equal(handlerEntries, 1);
 
 let deniedHandlerEntries = 0;
 const denied = new ExecutionCoordinator(
-  { authorize: async () => true },
+  { authorize: async () => false },
   { reserve: async () => ({ allowed: false, decision: 'deny_state' }) },
   async () => { deniedHandlerEntries += 1; },
 );
 const deniedResult = await denied.execute(operation);
-assert.deepEqual(deniedResult, { executed: false, decision: 'deny_reservation' });
+assert.deepEqual(deniedResult, { executed: false, decision: 'deny_authorization' });
 assert.equal(deniedHandlerEntries, 0);
