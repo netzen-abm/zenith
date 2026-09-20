@@ -60,7 +60,7 @@ const operation = await capability.execute(
 );
 
 assert.equal(operation.action, 'annotate');
-assert.equal(operation.state, 'created');
+assert.equal(operation.state, 'queued');
 assert.equal(operation.attemptCount, 0);
 assert.ok(operation.payloadRef);
 assert.equal(authCalls, 2);
