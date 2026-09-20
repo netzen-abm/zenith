@@ -30,7 +30,7 @@ export class PostgresExecutionReservation implements ExecutionReservation {
     return {
       allowed: result.allowed === true,
       decision: result.decision,
-      attemptCount: result.attempt_count ?? undefined,
+      ...(result.attempt_count == null ? {} : { attemptCount: result.attempt_count }),
     };
   }
 }
