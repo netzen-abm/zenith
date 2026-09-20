@@ -65,6 +65,25 @@ jobs:
           grep -qi "RLS" "$adr"
           grep -qi "security" "$adr"
 
+  execution-boundary-governance:
+    name: Execution boundary governance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Reject production execution bypass patterns
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RIn --exclude-dir=.git --exclude='*.md' -E 'authorize[[:space:]]*:[[:space:]]*(async[[:space:]]*)?\(.*\)[[:space:]]*=>[[:space:]]*true' packages tests; then
+            echo "ERROR: unconditional authorization shortcut found in executable TypeScript. Use an explicitly named deterministic test fixture or the real Core authorization adapter."
+            exit 1
+          fi
+          if grep -RIn --exclude-dir=.git -E '^[[:space:]]*(insert[[:space:]]+into|update)[[:space:]]+operations\\.(execution_outcomes|execution_outbox)' packages --include='*.ts' --include='*.tsx'; then
+            echo "ERROR: application code directly mutates execution outcome/outbox tables. Use the canonical durable outcome boundary."
+            exit 1
+          fi
+
   source-size-governance:
     name: Source size governance
     runs-on: ubuntu-latest
