@@ -54,6 +54,8 @@ create policy evidence_annotation_requests_insert
 grant select, insert on core.evidence_annotation_requests to authenticated;
 
 create schema if not exists core_private;
+
+grant usage on schema core_private to postgres;
 revoke all on schema core_private from public;
 grant usage on schema core_private to authenticated;
 
