@@ -18,7 +18,7 @@ Evidence records are protected Core data. The evidence schema currently exposes 
 
 Introduce a durable evidence-annotation request table and a single protected mutation function:
 
-`core.evidence_annotation_requests → core.consume_evidence_annotation_request(uuid) → core.evidence`
+`core.evidence_annotation_requests → core_private.consume_evidence_annotation_request(uuid) → core.evidence`
 
 The request is tenant- and identity-scoped with RLS. The mutation function is a narrowly scoped `SECURITY DEFINER` function because the authenticated role does not receive direct INSERT privilege on `core.evidence`.
 
@@ -35,7 +35,7 @@ The function uses an empty `search_path`, fully qualified relations, explicit ex
 
 ## Why this does not create a second authorization authority
 
-`core.consume_evidence_annotation_request` does not decide general capability policy. It enforces the domain mutation preconditions and calls the existing canonical `core.can_write_resource` policy primitive. General action authorization remains `core.authorize_capability`.
+`core_private.consume_evidence_annotation_request` does not decide general capability policy. It enforces the domain mutation preconditions and calls the existing canonical `core.can_write_resource` policy primitive. General action authorization remains `core.authorize_capability`.
 
 ## Consequences
 
