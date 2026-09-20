@@ -42,6 +42,7 @@ export class EvidenceAnnotationCapability {
       throw new Error('evidence_annotation_unauthorized');
     }
     await this.persist(operation, requestId, request, context);
+    operation.state = 'queued';
     const result = await this.coordinator.execute(operation);
     if (!result.executed) throw new Error(`evidence_annotation_not_executed:${result.decision}`);
     return operation;
