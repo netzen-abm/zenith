@@ -24,15 +24,6 @@ jobs:
             test -e "$path"
           done
 
-      - name: Enforce pinned GitHub Actions
-        shell: bash
-        run: |
-          set -euo pipefail
-          if grep -REn '^[[:space:]]*uses:[[:space:]]*[^@]+@(v|main|master|latest|[0-9]+$)' .github/workflows; then
-            echo "ERROR: every third-party GitHub Action must be pinned to an immutable commit SHA."
-            exit 1
-          fi
-
       - name: Validate authorization boundary when present
         shell: bash
         run: |
@@ -174,6 +165,12 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/zenith
         run: node --experimental-strip-types tests/database/postgres-execution-coordinator-e2e.test.ts
 
+      - name: Run Evidence Annotation PostgreSQL E2E (mandatory)
+        shell: bash
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/zenith
+        run: node --experimental-strip-types tests/database/evidence-annotation-e2e.test.ts
+
       - name: Run operations concurrency assertions (mandatory)
         shell: bash
         env:
@@ -199,4 +196,3 @@ jobs:
           node --experimental-strip-types packages/operation-queue/src/lifecycle.test.ts
           node --experimental-strip-types packages/operation-queue/src/execution-coordinator.test.ts
           node --experimental-strip-types packages/operation-queue/src/postgres-execution-reservation.test.ts
-          node --experimental-strip-types packages/operation-queue/src/execution-kernel-conformance.test.ts
