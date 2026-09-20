@@ -1,7 +1,7 @@
 # ADR 0013: Durable Execution Outcome and Audit/Outbox Boundary
 
-- Status: Proposed
-- Date: 2026-09-19
+- Status: Accepted
+- Date: 2026-09-20
 
 ## Decision
 
