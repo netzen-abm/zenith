@@ -74,14 +74,14 @@ select set_config('app.organisation_id','${ids.organisation}',true);`;
       const out = await psql(`${auth}
 select allowed::text || '|' || decision from core.authorize_capability('${action}',${resource},'${purpose}');
 rollback;`);
-      const [allowed, decision] = out.split('|');
+      const [allowed, decision] = out.split('\n').filter(Boolean).at(-2)?.split('|') ?? ['', ''];
       return [{ allowed: allowed === 'true', decision }] as T[];
     }
     if (sql.includes('core_private.consume_evidence_annotation_request')) {
       const out = await psql(`${auth}
 select evidence_id::text || '|' || decision from core_private.consume_evidence_annotation_request('${id}'::uuid);
 commit;`);
-      const [evidenceId, decision] = out.split('|');
+      const [evidenceId, decision] = out.split('\n').filter(Boolean).at(-2)?.split('|') ?? ['', ''];
       return [{ evidence_id: evidenceId, decision }] as T[];
     }
     if (sql.includes('operations.record_execution_outcome')) {
@@ -90,13 +90,13 @@ commit;`);
       const out = await psql(`${auth}
 select recorded::text || '|' || decision from operations.record_execution_outcome('${operationId}'::uuid,${Number(attempt)},${esc(outcome)},${esc(errorCode)},${esc(resultRef)},${esc(resultHash)},${esc(occurredAt)}::timestamptz);
 commit;`);
-      const [recorded, decision] = out.split('|');
+      const [recorded, decision] = out.split('\n').filter(Boolean).at(-2)?.split('|') ?? ['', ''];
       return [{ recorded: recorded === 'true', decision }] as T[];
     }
     const out = await psql(`${auth}
 select allowed::text || '|' || decision || '|' || coalesce(attempt_count::text,'null') from operations.reserve_execution('${id}'::uuid);
 commit;`);
-    const [allowed, decision, attempt] = out.split('|');
+    const [allowed, decision, attempt] = out.split('\n').filter(Boolean).at(-2)?.split('|') ?? ['', '', ''];
     return [{ allowed: allowed === 'true', decision, attempt_count: Number(attempt) }] as T[];
   },
 };
