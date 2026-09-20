@@ -136,6 +136,8 @@ const result = await coordinator.execute({
   payloadRef: ids.request,
 });
 
+console.log('Evidence Annotation execution result:', JSON.stringify(result));
+console.log('Evidence Annotation handler entries:', handlerEntries);
 assert.equal(result.executed, true);
 assert.equal(handlerEntries, 1);
 assert.equal(await psql(`select state || '|' || attempt_count from operations.operations where id='${ids.operation}'`), 'acknowledged|1');
