@@ -156,7 +156,7 @@ select set_config('request.jwt.claim.sub','${ids.outsiderAuth}',true);
 select set_config('app.identity_id','${ids.outsider}',true);
 select set_config('app.organisation_id','${ids.organisation}',true);
 select count(*) from core.evidence
- where id = (select evidence_id from core.evidence_annotation_requests where id='${ids.request}');
+ where source_id = '${ids.source}' and resource_id = '${ids.resource}';
 rollback;`);
 assert.equal(outsiderRead, '0');
 
