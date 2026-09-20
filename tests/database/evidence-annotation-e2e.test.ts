@@ -18,6 +18,8 @@ const ids = {
   authUser: '00000000-0000-0000-0000-0000000000a3',
   resource: '00000000-0000-0000-0000-0000000000d2',
   source: '00000000-0000-0000-0000-0000000000d3',
+  outsider: '00000000-0000-0000-0000-0000000000a4',
+  outsiderAuth: '00000000-0000-0000-0000-0000000000a5',
 };
 
 async function psql(sql: string): Promise<string> {
@@ -32,6 +34,8 @@ insert into auth.users(id) values ('${ids.authUser}') on conflict do nothing;
 insert into core.organisations(id,name,slug) values ('${ids.organisation}','Evidence E2E','evidence-e2e') on conflict (id) do nothing;
 insert into core.identities(id,auth_user_id,display_name) values ('${ids.identity}','${ids.authUser}','Evidence E2E Identity') on conflict (id) do nothing;
 insert into core.identity_organisation_memberships(identity_id,organisation_id,membership_role) values ('${ids.identity}','${ids.organisation}','member') on conflict do nothing;
+insert into auth.users(id) values ('${ids.outsiderAuth}') on conflict do nothing;
+insert into core.identities(id,auth_user_id,display_name) values ('${ids.outsider}','${ids.outsiderAuth}','Evidence E2E Outsider') on conflict (id) do nothing;
 insert into core.resources(id,organisation_id,resource_type,title,epistemic_status,sensitivity) values ('${ids.resource}','${ids.organisation}','research','Evidence E2E Resource','documented','public') on conflict (id) do nothing;
 insert into core.resource_memberships(resource_id,identity_id,membership_role) values ('${ids.resource}','${ids.identity}','owner') on conflict do nothing;
 insert into core.sources(id,organisation_id,source_type,title,sensitivity) values ('${ids.source}','${ids.organisation}','field_note','Evidence E2E Source','public') on conflict (id) do nothing;
@@ -127,6 +131,17 @@ assert.equal(await psql(`select status from core.evidence_annotation_requests wh
 assert.equal(await psql(`select count(*) from core.evidence where source_id='${ids.source}' and resource_id='${ids.resource}'`), '1');
 assert.equal(await psql(`select count(*) from operations.execution_outcomes where operation_id='${ids.operation}'`), '1');
 assert.equal(await psql(`select count(*) from operations.execution_outbox where operation_id='${ids.operation}'`), '1');
+
+const outsiderRead = await psql(`
+begin;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','${ids.outsiderAuth}',true);
+select set_config('app.identity_id','${ids.outsider}',true);
+select set_config('app.organisation_id','${ids.organisation}',true);
+select count(*) from core.evidence
+ where id = (select evidence_id from core.evidence_annotation_requests where id='${ids.request}');
+rollback;`);
+assert.equal(outsiderRead, '0');
 
 const directMutation = await psql(`
 begin;
