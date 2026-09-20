@@ -6,6 +6,15 @@ import {
 } from './execution-coordinator.ts';
 import { PostgresCoreAuthorization } from './postgres-core-authorization.ts';
 
+class DeterministicAllowAuthorization {
+  readonly calls: string[] = [];
+
+  async authorize(operation: OperationEnvelope): Promise<boolean> {
+    this.calls.push(operation.operationId);
+    return true;
+  }
+}
+
 const operation: OperationEnvelope = {
   operationId: 'op-concurrent-1',
   idempotencyKey: 'idem-1',
@@ -34,13 +43,7 @@ class ExactlyOneReservation implements ExecutionReservation {
   }
 }
 
-const authorizationCalls: string[] = [];
-const authorization = new PostgresCoreAuthorization({
-  async query(sql, params) {
-    authorizationCalls.push(String(sql) + '|' + params.join('|'));
-    return [{ allowed: true, decision: 'allow' }];
-  },
-});
+const authorization = new DeterministicAllowAuthorization();
 
 const recorded: string[] = [];
 const outcomeRecorder = {
