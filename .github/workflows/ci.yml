@@ -24,6 +24,15 @@ jobs:
             test -e "$path"
           done
 
+      - name: Enforce pinned GitHub Actions
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -REn '^[[:space:]]*uses:[[:space:]]*[^@]+@(v|main|master|latest|[0-9]+$)' .github/workflows; then
+            echo "ERROR: every third-party GitHub Action must be pinned to an immutable commit SHA."
+            exit 1
+          fi
+
       - name: Validate authorization boundary when present
         shell: bash
         run: |
