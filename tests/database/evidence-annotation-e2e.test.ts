@@ -149,19 +149,7 @@ assert.equal(await psql(`select count(*) from core.evidence where source_id='${i
 assert.equal(await psql(`select count(*) from operations.execution_outcomes where operation_id='${ids.operation}'`), '1');
 assert.equal(await psql(`select count(*) from operations.execution_outbox where operation_id='${ids.operation}'`), '1');
 
-const outsiderRead = await psql(`
-begin;
-set local role authenticated;
-select set_config('request.jwt.claim.sub','${ids.outsiderAuth}',true);
-select set_config('app.identity_id','${ids.outsider}',true);
-select set_config('app.organisation_id','${ids.organisation}',true);
-select count(*)::text from core.evidence
- where source_id = '${ids.source}' and resource_id = '${ids.resource}';
-rollback;`);
-const outsiderCount = outsiderRead.match(/(?:^|\\n)(\\d+)\\n?$/)?.[1];
-assert.equal(outsiderCount, '0');
-
-const directMutation = await psql(`
+const outsiderRead = await psql(`\nbegin;\nset local role authenticated;\nselect set_config('request.jwt.claim.sub','${ids.outsiderAuth}',true);\nselect set_config('app.identity_id','${ids.outsider}',true);\nselect set_config('app.organisation_id','${ids.organisation}',true);\nselect count(*)::text as evidence_count from core.evidence\n where source_id = '${ids.source}' and resource_id = '${ids.resource}';\nrollback;`);\nconst outsiderRows = outsiderRead.split('\\n').map(line => line.trim()).filter(line => /^[0-9]+$/.test(line));\nassert.equal(outsiderRows[outsiderRows.length - 1], '0');\n\nconst directMutation = await psql(`
 begin;
 set local role authenticated;
 select set_config('request.jwt.claim.sub','${ids.authUser}',true);
