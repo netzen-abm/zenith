@@ -29,8 +29,8 @@ BEGIN
       AND p.prosecdef AND p.proconfig @> ARRAY['search_path=']
   ) THEN RAISE EXCEPTION 'annotation mutation function security boundary missing'; END IF;
 
-  IF has_function_privilege('authenticated', 'core.consume_evidence_annotation_request(uuid)', 'EXECUTE') IS NOT TRUE
-     OR has_function_privilege('anon', 'core.consume_evidence_annotation_request(uuid)', 'EXECUTE') IS TRUE
+  IF has_function_privilege('authenticated', 'core_private.consume_evidence_annotation_request(uuid)', 'EXECUTE') IS NOT TRUE
+     OR has_function_privilege('anon', 'core_private.consume_evidence_annotation_request(uuid)', 'EXECUTE') IS TRUE
   THEN RAISE EXCEPTION 'annotation mutation function grants are unsafe'; END IF;
 END $$;
 SELECT 'evidence-annotation-assertions: PASS' AS result;
