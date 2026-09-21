@@ -151,9 +151,15 @@ assert.equal(await psql(`select count(*) from core.evidence where source_id='${i
 assert.equal(await psql(`select count(*) from operations.execution_outcomes where operation_id='${ids.operation}'`), '1');
 assert.equal(await psql(`select count(*) from operations.execution_outbox where operation_id='${ids.operation}'`), '1');
 
-const outsiderRead = await psql(`select count(*)::text from core.evidence where source_id='${ids.source}' and resource_id='${ids.resource}';`);
-const outsiderCount = outsiderRead.trim().split(/\\s+/).filter(Boolean).at(-1);
-assert.equal(outsiderCount, '0');
+const outsiderRead = await psql(`
+begin;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','${ids.outsiderAuth}',true);
+select set_config('app.identity_id','${ids.outsider}',true);
+select set_config('app.organisation_id','${ids.outsiderOrganisation}',true);
+select count(*)::text from core.evidence where source_id='${ids.source}' and resource_id='${ids.resource}';
+rollback;`);
+assert.equal(outsiderRead.split(/\\n/).filter(line => /^\\d+$/.test(line)).at(-1), '0');
 
 const directMutation = await psql(`
 begin;
