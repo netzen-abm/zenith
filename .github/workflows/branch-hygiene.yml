@@ -1,0 +1,99 @@
+name: Repository Branch Hygiene
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: branch-hygiene
+  cancel-in-progress: false
+
+jobs:
+  retire-safe-branches:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Retire branches safely
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # Exactly nine protected development slots:
+          # main + eight substantive capability workstreams.
+          protected=(
+            "main"
+            "feat/knowledge-graph-next"
+            "feat/space-time-next"
+            "feat/research-intelligence-next"
+            "feat/ai-agent-infrastructure"
+            "feat/multisurface-adapters"
+            "feat/api-sdk-contracts"
+            "feat/security-release-engineering"
+            "feat/shareable-platform-core"
+          )
+
+          is_protected() {
+            local candidate="$1"
+            for branch in "${protected[@]}"; do
+              [[ "$candidate" == "$branch" ]] && return 0
+            done
+            return 1
+          }
+
+          mapfile -t branches < <(
+            gh api --paginate "repos/$REPO/branches?per_page=100" --jq '.[].name'
+          )
+
+          deleted=0
+          retained=0
+
+          for branch in "${branches[@]}"; do
+            if is_protected "$branch"; then
+              echo "KEEP protected: $branch"
+              continue
+            fi
+
+            encoded_branch=$(printf '%s' "$branch" | jq -sRr @uri)
+
+            # Never retire a branch with an open pull request.
+            open_prs=$(gh api --paginate               "repos/$REPO/pulls?state=open&head=$(cut -d/ -f1 <<< "$REPO"):$encoded_branch&per_page=100"               --jq 'length' 2>/dev/null || echo 0)
+
+            if [[ "$open_prs" != "0" ]]; then
+              echo "KEEP open-PR branch: $branch"
+              retained=$((retained + 1))
+              continue
+            fi
+
+            # A merged PR proves the branch's work is represented in main,
+            # even when squash-merging makes the branch SHA differ.
+            merged_prs=$(gh api --paginate               "repos/$REPO/pulls?state=closed&head=$(cut -d/ -f1 <<< "$REPO"):$encoded_branch&per_page=100"               --jq '[.[] | select(.merged_at != null)] | length' 2>/dev/null || echo 0)
+
+            if [[ "$merged_prs" != "0" ]]; then
+              echo "DELETE merged-PR branch: $branch"
+              gh api --method DELETE "repos/$REPO/git/refs/heads/$encoded_branch"
+              deleted=$((deleted + 1))
+              continue
+            fi
+
+            # If the branch has no unique commits relative to main, its ref
+            # contains no branch-specific work and can be retired safely.
+            compare=$(gh api "repos/$REPO/compare/main...$encoded_branch")
+            ahead=$(jq -r '.ahead_by' <<< "$compare")
+
+            if [[ "$ahead" == "0" ]]; then
+              echo "DELETE fully-represented branch: $branch"
+              gh api --method DELETE "repos/$REPO/git/refs/heads/$encoded_branch"
+              deleted=$((deleted + 1))
+              continue
+            fi
+
+            echo "RETAIN for human review: $branch (ahead_by=$ahead)"
+            retained=$((retained + 1))
+          done
+
+          echo "Branch hygiene result: deleted=$deleted retained=$retained protected=9"
