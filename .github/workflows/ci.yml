@@ -206,6 +206,11 @@ jobs:
       - name: Run research execution integration tests
         run: node --experimental-strip-types packages/capabilities/src/research-operation.test.ts
 
+      - name: Run research negative-path tests
+        run: |
+          node --experimental-strip-types packages/capabilities/src/research-operation-negative.test.ts
+          node --experimental-strip-types packages/capabilities/src/research-provider-failure.test.ts
+
       - name: Run operation queue invariant tests
         run: |
           node --experimental-strip-types packages/operation-queue/src/lifecycle.test.ts
