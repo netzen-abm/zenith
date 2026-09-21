@@ -8,14 +8,15 @@ export type ResearchExecutionContext = { authorization: ExecutionAuthorization; 
 
 export class ResearchOperation {
   private readonly coordinator: ExecutionCoordinator;
-  constructor(private readonly store: ResearchQueryStore, private readonly provider: ResearchProvider, context: ResearchExecutionContext) {
+  constructor(private readonly store: ResearchQueryStore, private readonly provider: ResearchProvider, private readonly context: ResearchExecutionContext) {
     this.coordinator = new ExecutionCoordinator(context.authorization, context.reservation, operation => this.handle(operation), context.outcomeRecorder);
   }
 
   async execute(query: ResearchQuery): Promise<OperationEnvelope> {
     validateResearchQuery(query);
-    await this.store.save(query);
     const operation = this.createOperation(query);
+    if (!await this.context.authorization.authorize(operation)) throw new Error('research_unauthorized');
+    await this.store.save(query);
     const result = await this.coordinator.execute(operation);
     if (!result.executed) throw new Error('research_not_executed:' + result.decision);
     return operation;
@@ -29,7 +30,11 @@ export class ResearchOperation {
   private async handle(operation: OperationEnvelope) {
     const query = operation.payloadRef ? await this.store.get(operation.payloadRef) : undefined;
     if (!query) return { outcome: 'rejected' as const, errorCode: 'research_query_not_found' };
-    const result = await this.provider.search(query);
-    return { outcome: 'acknowledged' as const, resultRef: result.providerQueryReference };
+    try {
+      const result = await this.provider.search(query);
+      return { outcome: 'acknowledged' as const, resultRef: result.providerQueryReference };
+    } catch {
+      return { outcome: 'retry_wait' as const, errorCode: 'research_provider_failure' };
+    }
   }
 }
