@@ -33,7 +33,7 @@ export class FieldAcquisitionOperation {
     const observation = { ...request, id: requestId };
     validateFieldObservation(observation);
     const operation: OperationEnvelope = {
-      operationId, idempotencyKey: operationId, action: 'field.observation_create',
+      operationId, idempotencyKey: request.evidenceId + ':' + request.observerIdentityId + ':' + request.observedAt, action: 'field.observation_create',
       resourceId: request.evidenceId, organisationId: this.context.organisationId,
       identityId: this.context.identityId, purpose: this.context.purpose, state: 'created',
       createdAt: new Date().toISOString(), attemptCount: 0, payloadRef: requestId,
