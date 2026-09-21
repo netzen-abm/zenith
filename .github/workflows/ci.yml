@@ -216,6 +216,11 @@ jobs:
           node --experimental-strip-types packages/capabilities/src/research-missing-query.test.ts
           node --experimental-strip-types packages/capabilities/src/research-outcome-failure.test.ts
 
+      - name: Run Space-Time capability contract tests
+        run: |
+          node --experimental-strip-types packages/capabilities/src/space-time.test.ts
+          node --experimental-strip-types packages/capabilities/src/space-time-operation.test.ts
+
       - name: Run operation queue invariant tests
         run: |
           node --experimental-strip-types packages/operation-queue/src/lifecycle.test.ts
