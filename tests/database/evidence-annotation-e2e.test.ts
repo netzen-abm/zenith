@@ -159,7 +159,7 @@ select set_config('app.identity_id','${ids.outsider}',true);
 select set_config('app.organisation_id','${ids.outsiderOrganisation}',true);
 select count(*)::text from core.evidence where source_id='${ids.source}' and resource_id='${ids.resource}';
 rollback;`);
-assert.equal(outsiderRead.split(/\\n/).filter(line => /^\\d+$/.test(line)).at(-1), '0');
+assert.equal(outsiderRead.split(/\n/).filter(line => /^\d+$/.test(line)).at(-1), '0');
 
 const directMutation = await psql(`
 begin;
