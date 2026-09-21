@@ -61,3 +61,54 @@ Any material change involving a new language, hardware dependency, external prov
 ## 10. Implementation rule
 
 Feature work must consume the shared capability contracts. New surfaces must not recreate Core primitives. New domain modules must extend the canonical model rather than fork it.
+
+## 11. Repository and branch governance
+
+ZENITH maintains a strict active-development branch budget of nine. The budget represents real concurrent workstreams, not placeholder branches.
+
+The lifecycle is:
+
+`create → develop → prove → review → merge → delete`
+
+A branch must have a current, evidenced purpose. Historical, superseded, duplicate, or already-integrated branches must not be retained as active development lines.
+
+Branch retirement rules:
+
+1. Merge only work that is unique, validated, and not already represented in `main`.
+2. Delete branches whose work is already represented, superseded, abandoned, or merged.
+3. Never force-update a branch to `main` as a substitute for deletion.
+4. Never create placeholder branches solely to satisfy the nine-branch budget.
+5. A completed branch releases its slot immediately after merge and verification.
+6. Repository state must be verified from the remote branch inventory; local assumptions are insufficient.
+
+The target steady state is exactly nine genuine active branches. When fewer than nine genuine workstreams exist, no artificial branches are created.
+
+## 12. Shared infrastructure boundary
+
+Cross-cutting platform concerns are canonical shared infrastructure:
+
+`Identity → Authorization → Tenant/RLS → Capability Contract → Operation → Reservation → Handler → Durable Outcome → Outbox`
+
+Domain capabilities consume these contracts. They must not create competing authorization, tenant-isolation, operation-lifecycle, idempotency, reservation, audit, or protected-mutation mechanisms.
+
+A new shared primitive requires evidence that an existing contract cannot satisfy the capability, followed by an ADR, implementation, positive tests, negative tests, and conformance coverage.
+
+The execution kernel is treated as frozen infrastructure unless a concrete capability demonstrates a missing invariant or boundary.
+
+## 13. Capability conformance gate
+
+Every new domain capability must demonstrate:
+
+- canonical authorization before protected work;
+- database-enforced tenant/resource isolation;
+- durable operation identity;
+- execution reservation before handler entry;
+- authoritative attempt propagation;
+- exactly-once admission under concurrency;
+- durable outcome recording;
+- protected mutation through the canonical boundary;
+- provenance/evidence continuity where applicable;
+- no alternate security or lifecycle path.
+
+A capability that bypasses a canonical boundary is non-conformant even if its functional tests pass.
+
