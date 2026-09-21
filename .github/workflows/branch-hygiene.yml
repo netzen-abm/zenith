@@ -17,6 +17,11 @@ jobs:
   retire-safe-branches:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout complete history
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
       - name: Retire branches safely
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -51,44 +56,58 @@ jobs:
           deleted=0
           retained=0
 
+          git fetch origin main --prune
+
           for branch in "${branches[@]}"; do
             if is_protected "$branch"; then
               echo "KEEP protected: $branch"
               continue
             fi
 
-            encoded_branch=$(printf '%s' "$branch" | jq -sRr @uri)
+            if ! git fetch origin "refs/heads/$branch:refs/remotes/origin/$branch" --quiet; then
+              echo "RETAIN fetch-failed: $branch"
+              retained=$((retained + 1))
+              continue
+            fi
+
             repo_owner="${REPO%%/*}"
+            head_ref="${repo_owner}:$branch"
 
-            open_prs=$(gh api --paginate               "repos/$REPO/pulls?state=open&head=$repo_owner:$encoded_branch&per_page=100"               --jq 'length' 2>/dev/null || echo 0)
-
+            open_prs=$(gh pr list --repo "$REPO" --state open --head "$head_ref" --json number --jq 'length')
             if [[ "$open_prs" != "0" ]]; then
               echo "KEEP open-PR branch: $branch"
               retained=$((retained + 1))
               continue
             fi
 
-            merged_prs=$(gh api --paginate               "repos/$REPO/pulls?state=closed&head=$repo_owner:$encoded_branch&per_page=100"               --jq '[.[] | select(.merged_at != null)] | length' 2>/dev/null || echo 0)
-
+            merged_prs=$(gh pr list --repo "$REPO" --state merged --head "$head_ref" --json number --jq 'length')
             if [[ "$merged_prs" != "0" ]]; then
               echo "DELETE merged-PR branch: $branch"
-              gh api --method DELETE "repos/$REPO/git/refs/heads/$encoded_branch"
+              gh api --method DELETE "repos/$REPO/git/refs/heads/$branch"
               deleted=$((deleted + 1))
               continue
             fi
 
-            compare=$(gh api "repos/$REPO/compare/main...$encoded_branch")
-            ahead=$(jq -r '.ahead_by' <<< "$compare")
+            mapfile -t cherry_status < <(git cherry origin/main "origin/$branch")
+            unique=0
+            for entry in "${cherry_status[@]}"; do
+              [[ "$entry" == +* ]] && unique=$((unique + 1))
+            done
 
-            if [[ "$ahead" == "0" ]]; then
-              echo "DELETE fully-represented branch: $branch"
-              gh api --method DELETE "repos/$REPO/git/refs/heads/$encoded_branch"
+            if [[ "$unique" == "0" ]]; then
+              echo "DELETE patch-equivalent branch: $branch"
+              gh api --method DELETE "repos/$REPO/git/refs/heads/$branch"
               deleted=$((deleted + 1))
-              continue
+            else
+              echo "RETAIN unique unmerged work: $branch (unique_commits=$unique)"
+              retained=$((retained + 1))
             fi
-
-            echo "RETAIN for review: $branch (ahead_by=$ahead)"
-            retained=$((retained + 1))
           done
 
-          echo "Branch hygiene result: deleted=$deleted retained=$retained protected=9 slots"
+          remaining=$(gh api --paginate "repos/$REPO/branches?per_page=100" --jq 'length' | awk '{s += $1} END {print s+0}')
+          echo "Branch hygiene result: deleted=$deleted retained=$retained remaining=$remaining protected=9"
+
+          if [[ "$remaining" -ne 9 ]]; then
+            echo "::error::Repository branch count is $remaining; target is exactly 9."
+            exit 1
+          fi
