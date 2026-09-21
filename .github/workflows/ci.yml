@@ -200,6 +200,9 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Verify Node.js runtime
         run: node --version
+      - name: Run research intelligence query contract tests
+        run: node --experimental-strip-types packages/capabilities/src/research-intelligence.test.ts
+
       - name: Run operation queue invariant tests
         run: |
           node --experimental-strip-types packages/operation-queue/src/lifecycle.test.ts
