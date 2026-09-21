@@ -1,6 +1,7 @@
 name: Repository Branch Hygiene
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
 
