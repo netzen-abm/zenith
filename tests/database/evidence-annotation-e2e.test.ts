@@ -38,7 +38,7 @@ insert into core.identity_organisation_memberships(identity_id,organisation_id,m
 insert into auth.users(id) values ('${ids.outsiderAuth}') on conflict do nothing;
 insert into core.organisations(id,name,slug) values ('${ids.outsiderOrganisation}','Evidence E2E Outsider Org','evidence-e2e-outsider') on conflict (id) do nothing;
 insert into core.identities(id,auth_user_id,display_name) values ('${ids.outsider}','${ids.outsiderAuth}','Evidence E2E Outsider') on conflict (id) do nothing;
-insert into core.resources(id,organisation_id,resource_type,title,epistemic_status,sensitivity) values ('${ids.resource}','${ids.organisation}','research','Evidence E2E Resource','documented','public') on conflict (id) do nothing;
+insert into core.resources(id,organisation_id,resource_type,title,epistemic_status,sensitivity) values ('${ids.resource}','${ids.organisation}','research','Evidence E2E Resource','documented','controlled') on conflict (id) do nothing;
 insert into core.resource_memberships(resource_id,identity_id,membership_role) values ('${ids.resource}','${ids.identity}','owner') on conflict do nothing;
 insert into core.sources(id,organisation_id,source_type,title,sensitivity) values ('${ids.source}','${ids.organisation}','field_note','Evidence E2E Source','public') on conflict (id) do nothing;
 delete from core.evidence_annotation_requests where id = '${ids.request}';
