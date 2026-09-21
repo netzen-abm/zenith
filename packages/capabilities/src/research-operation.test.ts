@@ -29,4 +29,4 @@ const result = await operation.execute({
 
 assert.equal(result.action, 'research.query');
 assert.equal(result.attemptCount, 1);
-assert.deepEqual(calls, ['authorize', 'reserve', 'outcome:acknowledged']);
+assert.deepEqual(calls, ['authorize', 'authorize', 'reserve', 'outcome:acknowledged']);
