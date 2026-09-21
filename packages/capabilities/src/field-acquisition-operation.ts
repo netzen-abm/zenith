@@ -3,7 +3,7 @@ import type { OperationEnvelope } from '../../contracts/src/operation.ts';
 import { ExecutionCoordinator, type ExecutionAuthorization, type ExecutionOutcomeRecorder, type ExecutionReservation } from '../../operation-queue/src/execution-coordinator.ts';
 import { validateFieldObservation, type FieldObservation } from './field-acquisition.ts';
 
-export type FieldObservationRequest = Omit<FieldObservation, 'id'>;
+export type FieldObservationRequest = Omit<FieldObservation, 'id'> & { idempotencyKey: string };
 export type FieldExecutionContext = {
   organisationId: string; identityId: string; purpose: string;
   authorization: ExecutionAuthorization;
@@ -32,8 +32,9 @@ export class FieldAcquisitionOperation {
     const operationId = randomUUID();
     const observation = { ...request, id: requestId };
     validateFieldObservation(observation);
+    if (!request.idempotencyKey.trim()) throw new Error('field_observation_idempotency_key_required');
     const operation: OperationEnvelope = {
-      operationId, idempotencyKey: request.evidenceId + ':' + request.observerIdentityId + ':' + request.observedAt, action: 'field.observation_create',
+      operationId, idempotencyKey: request.idempotencyKey, action: 'field.observation_create',
       resourceId: request.evidenceId, organisationId: this.context.organisationId,
       identityId: this.context.identityId, purpose: this.context.purpose, state: 'created',
       createdAt: new Date().toISOString(), attemptCount: 0, payloadRef: requestId,
