@@ -1,5 +1,7 @@
 set lock_timeout = '5s';
 
+create unique index if not exists research_questions_id_org_uq on core.research_questions(id, organisation_id);
+
 create table if not exists core.research_query_requests (
   id uuid primary key default gen_random_uuid(),
   organisation_id uuid not null references core.organisations(id) on delete restrict,
