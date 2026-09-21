@@ -17,7 +17,12 @@ type Store = { transaction<T>(work: (db: Db) => Promise<T>): Promise<T> };
 
 export class SpaceTimeOperation {
   private readonly coordinator: ExecutionCoordinator;
-  constructor(private readonly db: Store, private readonly context: SpaceTimeExecutionContext) {
+  private readonly db: Store;
+  private readonly context: SpaceTimeExecutionContext;
+
+  constructor(db: Store, context: SpaceTimeExecutionContext) {
+    this.db = db;
+    this.context = context;
     this.coordinator = new ExecutionCoordinator(
       context.authorization, context.reservation,
       operation => this.handle(operation), context.outcomeRecorder,
