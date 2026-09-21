@@ -8,7 +8,7 @@ const query: ResearchQuery = {
 };
 const calls: string[] = [];
 const store: ResearchQueryStore = {
-  save: async () => {},
+  save: async query => query.queryId,
   get: async () => undefined,
 };
 const operation = new ResearchOperation(store, {
