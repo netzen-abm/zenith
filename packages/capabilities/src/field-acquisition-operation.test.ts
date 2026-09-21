@@ -16,7 +16,7 @@ const context = {
   outcomeRecorder: { record: async () => ({ recorded: true, decision: 'allow' }) },
 };
 await new FieldAcquisitionOperation(db, context).execute({
-  organisationId: 'org-1', evidenceId: 'evidence-1', observerIdentityId: 'identity-1',
+  organisationId: 'org-1', evidenceId: 'evidence-1', observerIdentityId: 'identity-1', idempotencyKey: 'capture-1',
   observationType: 'ceramic_fragment', value: { count: 3 },
 });
 if (!calls.some(sql => sql.includes('consume_field_observation_request'))) throw new Error('field handler boundary not reached');
