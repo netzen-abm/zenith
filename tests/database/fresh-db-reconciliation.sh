@@ -59,6 +59,7 @@ done
 "${PSQL[@]}" -f "$ROOT_DIR/tests/database/knowledge-graph-assertions.sql"
 "${PSQL[@]}" -f "$ROOT_DIR/tests/database/space-time-assertions.sql"
 "${PSQL[@]}" -f "$ROOT_DIR/tests/database/research-assertions.sql"
+"${PSQL[@]}" -f "$ROOT_DIR/tests/database/evidence-annotation-assertions.sql"
 "${PSQL[@]}" -f "$ROOT_DIR/tests/database/identity-organisation-context-assertions.sql"
 "${PSQL[@]}" -f "$ROOT_DIR/tests/database/operations-assertions.sql"
 "${PSQL[@]}" -f "$ROOT_DIR/tests/database/operations-mutation-boundary-assertions.sql"
