@@ -4,7 +4,7 @@ import { ResearchOperation, type ResearchQueryStore } from './research-operation
 
 class MemoryQueryStore implements ResearchQueryStore {
   private readonly data = new Map<string, any>();
-  async save(query: any) { this.data.set(query.queryId, query); }
+  async save(query: any) { this.data.set(query.queryId, query); return query.queryId; }
   async get(id: string) { return this.data.get(id); }
 }
 
