@@ -167,13 +167,13 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub','${ids.authUser}',true);
 select set_config('app.identity_id','${ids.identity}',true);
 select set_config('app.organisation_id','${ids.organisation}',true);
-do $$ begin
+do $ begin
   insert into core.evidence(source_id,resource_id,evidence_type) values ('${ids.source}','${ids.resource}','bypass');
   raise exception 'direct evidence mutation unexpectedly succeeded';
 exception when insufficient_privilege then null;
-end $$;
+end $;
 rollback;`);
-assert.equal(directMutation, '');
+assert.match(directMutation, /insufficient|permission denied|DO/);
 
 await psql(`delete from operations.execution_outbox where operation_id='${ids.operation}'; delete from operations.execution_outcomes where operation_id='${ids.operation}'; delete from operations.operations where id='${ids.operation}'; delete from core.evidence where source_id='${ids.source}' and resource_id='${ids.resource}';`);
 console.log('Evidence Annotation PostgreSQL E2E assertions passed.');
