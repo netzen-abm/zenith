@@ -7,7 +7,7 @@ const query: ResearchQuery = {
   requesterIdentityId: 'id-1', organisationId: 'org-1', purpose: 'research',
 };
 const store: ResearchQueryStore = {
-  save: async () => {},
+  save: async query => query.queryId,
   get: async () => query,
 };
 const operation = new ResearchOperation(store, {
