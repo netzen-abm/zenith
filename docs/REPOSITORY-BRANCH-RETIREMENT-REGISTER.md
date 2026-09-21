@@ -4,6 +4,8 @@
 **Canonical base:** `main`  
 **Branch budget:** 9 total active development branches, including `main`
 
+**Source-code limit:** every tracked source file must remain at or below 180 lines; split by responsibility rather than compressing logic.
+
 ## Purpose
 
 This register separates **Git history preservation** from **remote branch retention**.
