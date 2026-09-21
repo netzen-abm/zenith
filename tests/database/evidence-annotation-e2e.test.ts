@@ -20,6 +20,7 @@ const ids = {
   source: '00000000-0000-0000-0000-0000000000d5',
   outsider: '00000000-0000-0000-0000-0000000000c4',
   outsiderAuth: '00000000-0000-0000-0000-0000000000c5',
+  outsiderOrganisation: '00000000-0000-0000-0000-0000000000c6',
 };
 
 async function psql(sql: string): Promise<string> {
@@ -35,6 +36,7 @@ insert into core.organisations(id,name,slug) values ('${ids.organisation}','Evid
 insert into core.identities(id,auth_user_id,display_name) values ('${ids.identity}','${ids.authUser}','Evidence E2E Identity') on conflict (id) do nothing;
 insert into core.identity_organisation_memberships(identity_id,organisation_id,membership_role) values ('${ids.identity}','${ids.organisation}','member') on conflict do nothing;
 insert into auth.users(id) values ('${ids.outsiderAuth}') on conflict do nothing;
+insert into core.organisations(id,name,slug) values ('${ids.outsiderOrganisation}','Evidence E2E Outsider Org','evidence-e2e-outsider') on conflict (id) do nothing;
 insert into core.identities(id,auth_user_id,display_name) values ('${ids.outsider}','${ids.outsiderAuth}','Evidence E2E Outsider') on conflict (id) do nothing;
 insert into core.resources(id,organisation_id,resource_type,title,epistemic_status,sensitivity) values ('${ids.resource}','${ids.organisation}','research','Evidence E2E Resource','documented','public') on conflict (id) do nothing;
 insert into core.resource_memberships(resource_id,identity_id,membership_role) values ('${ids.resource}','${ids.identity}','owner') on conflict do nothing;
