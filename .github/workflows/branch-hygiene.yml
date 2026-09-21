@@ -32,6 +32,7 @@ jobs:
             "feat/multisurface-adapters"
             "feat/api-sdk-contracts"
             "feat/security-release-engineering"
+            "feat/field-acquisition"
           )
 
           is_protected() {
