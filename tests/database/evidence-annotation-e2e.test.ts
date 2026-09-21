@@ -164,6 +164,9 @@ assert.equal(outsiderRead.split(/\n/).filter(line => /^\d+$/.test(line)).at(-1),
 const directMutation = await psql(`
 begin;
 set local role authenticated;
+select set_config('request.jwt.claim.sub','${ids.authUser}',true);
+select set_config('app.identity_id','${ids.identity}',true);
+select set_config('app.organisation_id','${ids.organisation}',true);
 select has_table_privilege(current_user, 'core.evidence', 'INSERT')::text;
 rollback;`);
 assert.equal(directMutation.trim(), 'f');
