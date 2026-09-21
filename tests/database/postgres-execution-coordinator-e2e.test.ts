@@ -6,6 +6,7 @@ import { PostgresCoreAuthorization } from '../../packages/operation-queue/src/po
 import { PostgresExecutionReservation } from '../../packages/operation-queue/src/postgres-execution-reservation.ts';
 import { PostgresExecutionOutcomeRecorder } from '../../packages/operation-queue/src/postgres-execution-outcome-recorder.ts';
 
+const execFileAsync = promisify(execFile);
 const dbUrl = process.env.DATABASE_URL;
 if (!dbUrl) throw new Error('DATABASE_URL is required');
 
@@ -16,6 +17,7 @@ const authUserId = '00000000-0000-0000-0000-0000000000a3';
 const resourceId = '00000000-0000-0000-0000-0000000000d1';
 
 async function psql(sql: string): Promise<string> {
+  const result = await execFileAsync('psql', [
     '--dbname', dbUrl, '-v', 'ON_ERROR_STOP=1', '-X', '-At', '-F', '\t', '-c', sql,
   ]);
   return result.stdout.trim();
@@ -27,6 +29,7 @@ insert into core.organisations(id,name,slug)
   values ('${organisationId}','Coordinator E2E','coordinator-e2e')
   on conflict (id) do nothing;
 insert into core.identities(id,auth_user_id,display_name)
+  values ('${identityId}','${authUserId}','Coordinator E2E Identity')
   on conflict (id) do nothing;
 insert into core.identity_organisation_memberships(identity_id,organisation_id,membership_role)
   values ('${identityId}','${organisationId}','member')
@@ -51,35 +54,11 @@ begin;
 set local role authenticated;
 select set_config('request.jwt.claim.sub','${authUserId}',true);
 select set_config('app.identity_id','${identityId}',true);
+select set_config('app.organisation_id','${organisationId}',true);
 select operations.transition('${operationId}','created','authorized');
 select operations.transition('${operationId}','authorized','queued');
 commit;
 `);
-
-const context = await psql(`
-begin;
-set local role authenticated;
-select set_config('request.jwt.claim.sub','${authUserId}',true);
-select set_config('app.identity_id','${identityId}',true);
-select set_config('app.organisation_id','${organisationId}',true);
-select coalesce(core.current_identity_id()::text,'null') || '|' ||
-       coalesce(core.current_organisation_id()::text,'null') || '|' ||
-       coalesce((select allowed from core.authorize_capability('annotate','${resourceId}'::uuid,'coordinator e2e') limit 1)::text,'null') || '|' ||
-       coalesce((select decision from core.authorize_capability('annotate','${resourceId}'::uuid,'coordinator e2e') limit 1),'null');
-rollback;`);
-console.log('Coordinator E2E auth context:', context);
-const queuedState = await psql("select state || '|' || attempt_count from operations.operations where id = '"+operationId+"'");
-console.log('Coordinator E2E queued state:', queuedState);
-assert.equal(queuedState, 'queued|0');
-const reservationProbe = await psql(`
-begin;
-set local role authenticated;
-select set_config('request.jwt.claim.sub','${authUserId}',true);
-select set_config('app.identity_id','${identityId}',true);
-select set_config('app.organisation_id','${organisationId}',true);
-select coalesce((select state from operations.operations where id='${operationId}'),'missing') || '|' ||
-rollback;`);
-console.log('Coordinator E2E reservation probe:', reservationProbe);
 
 const db = {
   async query<T extends Record<string, unknown>>(sql: string, params: readonly unknown[]) {
@@ -104,6 +83,7 @@ rollback;`);
       const esc = (value: unknown) => value === null || value === undefined ? 'null' : "'" + String(value).replaceAll("'", "''") + "'";
       const output = await psql(`begin;
 set local role authenticated;
+select set_config('request.jwt.claim.sub','${authUserId}',true);
 select set_config('app.identity_id','${identityId}',true);
 select set_config('app.organisation_id','${organisationId}',true);
 select recorded::text || '|' || decision from operations.record_execution_outcome('${String(id)}'::uuid, ${Number(attempt)}, ${esc(outcome)}, ${esc(errorCode)}, ${esc(resultRef)}, ${esc(resultHash)}, ${esc(occurredAt)}::timestamptz);
