@@ -95,7 +95,11 @@ A new shared primitive requires evidence that an existing contract cannot satisf
 
 The execution kernel is treated as frozen infrastructure unless a concrete capability demonstrates a missing invariant or boundary.
 
-## 13. Capability conformance gate
+## 13. Shareable platform architecture
+
+The reusable ecosystem boundary is defined in `docs/SHARED-PLATFORM-ARCHITECTURE.md`. Cross-cutting primitives must remain centralized and provider-neutral; domain capabilities and experience surfaces consume those contracts without recreating security-critical infrastructure.
+
+## 14. Capability conformance gate
 
 Every new domain capability must demonstrate:
 
