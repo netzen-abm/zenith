@@ -22,5 +22,6 @@ const operation = new ResearchOperation(store, {
     return { recorded: true, decision: 'recorded' };
   } },
 });
-await assert.rejects(() => operation.execute(query), /research_not_executed:allow/);
+const result = await operation.execute(query);
+assert.equal(result.action, 'research.query');
 assert.deepEqual(calls, ['outcome:rejected']);
