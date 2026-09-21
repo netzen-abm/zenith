@@ -3,16 +3,18 @@ import type { OperationEnvelope } from '../../contracts/src/operation.ts';
 import { ExecutionCoordinator, type ExecutionAuthorization, type ExecutionOutcomeRecorder, type ExecutionReservation } from '../../operation-queue/src/execution-coordinator.ts';
 import { validateResearchQuery, type ResearchQuery, type ResearchProvider } from './research-intelligence.ts';
 
+export type ResearchQueryStore = { get(id: string): Promise<ResearchQuery | undefined>; save(query: ResearchQuery): Promise<void> };
 export type ResearchExecutionContext = { authorization: ExecutionAuthorization; reservation: ExecutionReservation; outcomeRecorder: ExecutionOutcomeRecorder };
 
 export class ResearchOperation {
   private readonly coordinator: ExecutionCoordinator;
-  constructor(private readonly provider: ResearchProvider, private readonly context: ResearchExecutionContext) {
+  constructor(private readonly store: ResearchQueryStore, private readonly provider: ResearchProvider, context: ResearchExecutionContext) {
     this.coordinator = new ExecutionCoordinator(context.authorization, context.reservation, operation => this.handle(operation), context.outcomeRecorder);
   }
 
   async execute(query: ResearchQuery): Promise<OperationEnvelope> {
     validateResearchQuery(query);
+    await this.store.save(query);
     const operation = this.createOperation(query);
     const result = await this.coordinator.execute(operation);
     if (!result.executed) throw new Error('research_not_executed:' + result.decision);
@@ -25,7 +27,9 @@ export class ResearchOperation {
   }
 
   private async handle(operation: OperationEnvelope) {
-    if (!operation.payloadRef) return { outcome: 'rejected' as const, errorCode: 'research_query_reference_missing' };
-    return { outcome: 'acknowledged' as const, resultRef: operation.payloadRef };
+    const query = operation.payloadRef ? await this.store.get(operation.payloadRef) : undefined;
+    if (!query) return { outcome: 'rejected' as const, errorCode: 'research_query_not_found' };
+    const result = await this.provider.search(query);
+    return { outcome: 'acknowledged' as const, resultRef: result.providerQueryReference };
   }
 }
