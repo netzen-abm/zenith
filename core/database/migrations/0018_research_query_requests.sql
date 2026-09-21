@@ -6,7 +6,7 @@ create table if not exists core.research_query_requests (
   id uuid primary key default gen_random_uuid(),
   organisation_id uuid not null references core.organisations(id) on delete restrict,
   identity_id uuid not null references core.identities(id) on delete restrict,
-  research_question_id uuid references core.research_questions(id) on delete set null,
+  research_question_id uuid,
   intent text not null,
   query_text text not null,
   concepts jsonb not null default '[]'::jsonb,
