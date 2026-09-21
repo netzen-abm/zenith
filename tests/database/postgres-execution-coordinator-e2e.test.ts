@@ -60,32 +60,6 @@ select operations.transition('${operationId}','authorized','queued');
 commit;
 `);
 
-const context = await psql(`
-begin;
-set local role authenticated;
-select set_config('request.jwt.claim.sub','${authUserId}',true);
-select set_config('app.identity_id','${identityId}',true);
-select set_config('app.organisation_id','${organisationId}',true);
-select coalesce(core.current_identity_id()::text,'null') || '|' ||
-       coalesce(core.current_organisation_id()::text,'null') || '|' ||
-       coalesce((select allowed from core.authorize_capability('annotate','${resourceId}'::uuid,'coordinator e2e') limit 1)::text,'null') || '|' ||
-       coalesce((select decision from core.authorize_capability('annotate','${resourceId}'::uuid,'coordinator e2e') limit 1),'null');
-rollback;`);
-console.log('Coordinator E2E auth context:', context);
-const queuedState = await psql("select state || '|' || attempt_count from operations.operations where id = '"+operationId+"'");
-console.log('Coordinator E2E queued state:', queuedState);
-assert.equal(queuedState, 'queued|0');
-const reservationProbe = await psql(`
-begin;
-set local role authenticated;
-select set_config('request.jwt.claim.sub','${authUserId}',true);
-select set_config('app.identity_id','${identityId}',true);
-select set_config('app.organisation_id','${organisationId}',true);
-select coalesce((select state from operations.operations where id='${operationId}'),'missing') || '|' ||
-       coalesce((select allowed::text || ':' || decision from operations.reserve_execution('${operationId}'::uuid)),'null');
-rollback;`);
-console.log('Coordinator E2E reservation probe:', reservationProbe);
-
 const db = {
   async query<T extends Record<string, unknown>>(sql: string, params: readonly unknown[]) {
     if (sql.includes('core.authorize_capability')) {
