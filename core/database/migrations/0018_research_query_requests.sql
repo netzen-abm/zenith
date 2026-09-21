@@ -19,7 +19,7 @@ create table if not exists core.research_query_requests (
   purpose text not null,
   created_at timestamptz not null default now(),
   constraint research_query_question_scope foreign key (research_question_id, organisation_id)
-    references core.research_questions(id, organisation_id) on delete set null
+    references core.research_questions(id, organisation_id) on delete restrict
 );
 
 create unique index if not exists research_query_requests_id_uq on core.research_query_requests(id);
