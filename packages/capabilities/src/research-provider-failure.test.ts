@@ -4,7 +4,7 @@ import type { ResearchQuery } from './research-intelligence.ts';
 
 class Store implements ResearchQueryStore {
   private readonly data = new Map<string, ResearchQuery>();
-  async save(query: ResearchQuery) { this.data.set(query.queryId, query); }
+  async save(query: ResearchQuery) { this.data.set(query.queryId, query); return query.queryId; }
   async get(id: string) { return this.data.get(id); }
 }
 
