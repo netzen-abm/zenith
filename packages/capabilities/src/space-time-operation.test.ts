@@ -14,8 +14,8 @@ const db = {
 const context = {
   organisationId: 'org-1', identityId: 'identity-1', purpose: 'research',
   authorization: { authorize: async () => true },
-  reservation: { reserve: async (operation: unknown) => ({ reserved: true, attemptCount: 1, operation }) },
-  outcomeRecorder: { record: async () => ({}) },
+  reservation: { reserve: async () => ({ allowed: true, decision: 'allow', attemptCount: 1 }) },
+  outcomeRecorder: { record: async () => ({ recorded: true, decision: 'allow' }) },
 };
 await new SpaceTimeOperation(db, context).execute({
   resourceId: 'site-1', representationType: 'point', precisionLevel: 'generalized', coordinateConfidence: 0.8,
