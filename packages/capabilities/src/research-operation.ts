@@ -3,7 +3,7 @@ import type { OperationEnvelope } from '../../contracts/src/operation.ts';
 import { ExecutionCoordinator, type ExecutionAuthorization, type ExecutionOutcomeRecorder, type ExecutionReservation } from '../../operation-queue/src/execution-coordinator.ts';
 import { validateResearchQuery, type ResearchQuery, type ResearchProvider } from './research-intelligence.ts';
 
-export type ResearchQueryStore = { get(id: string): Promise<ResearchQuery | undefined>; save(query: ResearchQuery): Promise<void> };
+export type ResearchQueryStore = { get(id: string): Promise<ResearchQuery | undefined>; save(query: ResearchQuery): Promise<string> };
 export type ResearchExecutionContext = { authorization: ExecutionAuthorization; reservation: ExecutionReservation; outcomeRecorder: ExecutionOutcomeRecorder };
 
 export class ResearchOperation {
@@ -16,7 +16,8 @@ export class ResearchOperation {
     validateResearchQuery(query);
     const operation = this.createOperation(query);
     if (!await this.context.authorization.authorize(operation)) throw new Error('research_unauthorized');
-    await this.store.save(query);
+    const payloadRef = await this.store.save(query);
+    operation.payloadRef = payloadRef;
     const result = await this.coordinator.execute(operation);
     if (!result.executed) throw new Error('research_not_executed:' + result.decision);
     return operation;
