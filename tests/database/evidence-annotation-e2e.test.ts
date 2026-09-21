@@ -169,7 +169,7 @@ select set_config('app.identity_id','${ids.identity}',true);
 select set_config('app.organisation_id','${ids.organisation}',true);
 select has_table_privilege(current_user, 'core.evidence', 'INSERT')::text;
 rollback;`);
-assert.equal(directMutation.trim(), 'f');
+assert.equal(directMutation.trim().split(/\n/).at(-2), 'false');
 
 await psql(`delete from operations.execution_outbox where operation_id='${ids.operation}'; delete from operations.execution_outcomes where operation_id='${ids.operation}'; delete from operations.operations where id='${ids.operation}'; delete from core.evidence where source_id='${ids.source}' and resource_id='${ids.resource}';`);
 console.log('Evidence Annotation PostgreSQL E2E assertions passed.');
