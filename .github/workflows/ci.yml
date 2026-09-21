@@ -203,6 +203,9 @@ jobs:
       - name: Run research intelligence query contract tests
         run: node --experimental-strip-types packages/capabilities/src/research-intelligence.test.ts
 
+      - name: Run research execution integration tests
+        run: node --experimental-strip-types packages/capabilities/src/research-operation.test.ts
+
       - name: Run operation queue invariant tests
         run: |
           node --experimental-strip-types packages/operation-queue/src/lifecycle.test.ts
