@@ -10,8 +10,11 @@ export type FixtureWork = ResearchWork & { providerId: string };
 export class DeterministicResearchProvider implements ResearchProvider {
   readonly providerId = 'fixture';
   readonly adapterVersion = '1.0.0';
+  private readonly works: readonly FixtureWork[];
 
-  constructor(private readonly works: readonly FixtureWork[]) {}
+  constructor(works: readonly FixtureWork[]) {
+    this.works = works;
+  }
 
   async search(query: ResearchQuery): Promise<ResearchResult> {
     const matches = this.works.filter(work =>
