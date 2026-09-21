@@ -9,6 +9,7 @@ class MemoryQueryStore implements ResearchQueryStore {
 }
 
 const calls: string[] = [];
+let handlerAttemptCount = 0;
 const store = new MemoryQueryStore();
 const provider = new DeterministicResearchProvider([
   { providerId: 'fixture', title: 'Pattanam Archaeology', identifiers: ['w1'], sourceProvenance: 'fixture' },
@@ -16,7 +17,8 @@ const provider = new DeterministicResearchProvider([
 const operation = new ResearchOperation(store, provider, {
   authorization: { authorize: async () => { calls.push('authorize'); return true; } },
   reservation: { reserve: async () => { calls.push('reserve'); return { allowed: true, decision: 'reserved', attemptCount: 1 }; } },
-  outcomeRecorder: { record: async (_operation, outcome) => {
+  outcomeRecorder: { record: async (operation, outcome) => {
+    handlerAttemptCount = operation.attemptCount;
     calls.push('outcome:' + outcome.outcome);
     return { recorded: true, decision: 'recorded' };
   } },
@@ -28,5 +30,6 @@ const result = await operation.execute({
 });
 
 assert.equal(result.action, 'research.query');
-assert.equal(result.attemptCount, 1);
+assert.equal(result.attemptCount, 0);
+assert.equal(handlerAttemptCount, 1);
 assert.deepEqual(calls, ['authorize', 'authorize', 'reserve', 'outcome:acknowledged']);
