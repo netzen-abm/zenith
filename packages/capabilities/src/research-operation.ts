@@ -8,7 +8,13 @@ export type ResearchExecutionContext = { authorization: ExecutionAuthorization; 
 
 export class ResearchOperation {
   private readonly coordinator: ExecutionCoordinator;
-  constructor(private readonly store: ResearchQueryStore, private readonly provider: ResearchProvider, private readonly context: ResearchExecutionContext) {
+  private readonly store: ResearchQueryStore;
+  private readonly provider: ResearchProvider;
+  private readonly context: ResearchExecutionContext;
+  constructor(store: ResearchQueryStore, provider: ResearchProvider, context: ResearchExecutionContext) {
+    this.store = store;
+    this.provider = provider;
+    this.context = context;
     this.coordinator = new ExecutionCoordinator(context.authorization, context.reservation, operation => this.handle(operation), context.outcomeRecorder);
   }
 
