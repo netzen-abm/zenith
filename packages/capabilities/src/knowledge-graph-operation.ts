@@ -50,7 +50,7 @@ export class KnowledgeGraphCapability {
 
     const result = await this.coordinator.execute(
       operation,
-      async () => { await this.repository.saveRequest(relationship, context); return operation; },
+      async () => { await this.repository.saveRequest(relationship, context); operation.state = 'queued'; return operation; },
     );
     if (!result.executed) throw new Error(`knowledge_graph_not_executed:${result.decision}`);
     return operation;
