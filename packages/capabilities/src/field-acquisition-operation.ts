@@ -34,7 +34,8 @@ export class FieldAcquisitionOperation {
     };
     const result = await this.coordinator.execute(operation, async () => {
       await this.persist(operation, observation, requestId);
-      return { ...operation, state: 'queued' };
+      operation.state = 'queued';
+      return operation;
     });
     if (!result.executed) throw new Error('field_observation_not_executed:' + result.decision);
     return operation;
