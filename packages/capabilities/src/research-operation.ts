@@ -21,10 +21,10 @@ export class ResearchOperation {
   async execute(query: ResearchQuery): Promise<OperationEnvelope> {
     validateResearchQuery(query);
     const operation = this.createOperation(query);
-    if (!await this.context.authorization.authorize(operation)) throw new Error('research_unauthorized');
-    const payloadRef = await this.store.save(query);
-    operation.payloadRef = payloadRef;
-    const result = await this.coordinator.execute(operation);
+    const result = await this.coordinator.execute(operation, async () => {
+      const payloadRef = await this.store.save(query);
+      return { ...operation, payloadRef };
+    });
     if (!result.executed) throw new Error('research_not_executed:' + result.decision);
     return operation;
   }
