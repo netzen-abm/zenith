@@ -13,6 +13,7 @@ export interface ExecutionOutcomeRecorder {
   record(operation: OperationEnvelope, outcome: ExecutionOutcome): Promise<DurableOutcomeResult>;
 }
 export type ExecutionHandler = (operation: OperationEnvelope) => Promise<ExecutionOutcome>;
+export type ExecutionPreparation = (operation: OperationEnvelope) => Promise<OperationEnvelope | void>;
 export type ExecutionResult = { executed: boolean; decision: ExecutionDecision };
 
 export class ExecutionCoordinator {
@@ -33,17 +34,19 @@ export class ExecutionCoordinator {
     this.outcomeRecorder = outcomeRecorder;
   }
 
-  async execute(operation: OperationEnvelope): Promise<ExecutionResult> {
+  async execute(operation: OperationEnvelope, prepare?: ExecutionPreparation): Promise<ExecutionResult> {
     if (!await this.authorization.authorize(operation)) {
       return { executed: false, decision: 'deny_authorization' };
     }
-    const reserved = await this.reservation.reserve(operation.operationId);
+    const prepared = prepare ? await prepare(operation) : undefined;
+    const preparedOperation = prepared ?? operation;
+    const reserved = await this.reservation.reserve(preparedOperation.operationId);
     if (!reserved.allowed) {
       return { executed: false, decision: 'deny_reservation' };
     }
     const executionOperation = reserved.attemptCount === undefined
-      ? operation
-      : { ...operation, attemptCount: reserved.attemptCount };
+      ? preparedOperation
+      : { ...preparedOperation, attemptCount: reserved.attemptCount };
     const outcome = await this.handler(executionOperation);
     const durable = await this.outcomeRecorder.record(executionOperation, outcome);
     if (!durable.recorded) {
