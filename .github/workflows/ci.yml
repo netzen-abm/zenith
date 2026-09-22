@@ -212,3 +212,108 @@ jobs:
           node --experimental-strip-types packages/operation-queue/src/execution-coordinator.test.ts
           node --experimental-strip-types packages/operation-queue/src/postgres-execution-reservation.test.ts
           node --experimental-strip-types packages/operation-queue/src/execution-kernel-conformance.test.ts
+
+  branch-hygiene:
+    name: Enforce exactly nine active branches
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - name: Retire non-canonical branches safely
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          protected=(
+            "main"
+            "feat/knowledge-graph-next"
+            "feat/space-time-next"
+            "feat/research-intelligence-next"
+            "feat/ai-agent-infrastructure"
+            "feat/multisurface-adapters"
+            "feat/api-sdk-contracts"
+            "feat/security-release-engineering"
+            "feat/field-acquisition"
+          )
+
+          is_protected() {
+            local candidate="$1"
+            for branch in "${protected[@]}"; do
+              [[ "$candidate" == "$branch" ]] && return 0
+            done
+            return 1
+          }
+
+          mapfile -t branches < <(gh api --paginate "repos/$REPO/branches?per_page=100" --jq '.[].name')
+          mapfile -t open_pr_branches < <(gh pr list --repo "$REPO" --state open --json headRefName --jq '.[].headRefName')
+
+          is_open_pr_branch() {
+            local candidate="$1"
+            for open_branch in "${open_pr_branches[@]}"; do
+              [[ "$candidate" == "$open_branch" ]] && return 0
+            done
+            return 1
+          }
+
+          resolve_tag_commit() {
+            local tag_ref="$1"
+            local object_json object_type object_sha
+            object_json=$(gh api "repos/$REPO/git/ref/tags/$tag_ref")
+            object_type=$(jq -r '.object.type' <<< "$object_json")
+            object_sha=$(jq -r '.object.sha' <<< "$object_json")
+            if [[ "$object_type" == "tag" ]]; then
+              gh api "repos/$REPO/git/tags/$object_sha" --jq '.object.sha'
+            else
+              printf '%s' "$object_sha"
+            fi
+          }
+
+          archived=0
+          deleted=0
+          retained=0
+
+          for branch in "${branches[@]}"; do
+            if is_protected "$branch"; then
+              continue
+            fi
+            if is_open_pr_branch "$branch"; then
+              echo "RETAIN open PR: $branch"
+              retained=$((retained + 1))
+              continue
+            fi
+
+            branch_sha=$(gh api "repos/$REPO/branches/$branch" --jq '.commit.sha')
+            archive_tag="archive/branches/${branch//\//--}"
+
+            if gh api "repos/$REPO/git/ref/tags/$archive_tag" >/dev/null 2>&1; then
+              archived_sha=$(resolve_tag_commit "$archive_tag")
+              if [[ "$archived_sha" != "$branch_sha" ]]; then
+                echo "::error::Archive collision for $branch: $archived_sha != $branch_sha"
+                retained=$((retained + 1))
+                continue
+              fi
+            else
+              gh api --method POST "repos/$REPO/git/refs" -f "ref=refs/tags/$archive_tag" -f "sha=$branch_sha" >/dev/null
+              archived=$((archived + 1))
+            fi
+
+            verified_sha=$(resolve_tag_commit "$archive_tag")
+            if [[ "$verified_sha" != "$branch_sha" ]]; then
+              echo "::error::Archive verification failed for $branch"
+              retained=$((retained + 1))
+              continue
+            fi
+
+            gh api --method DELETE "repos/$REPO/git/refs/heads/$branch" >/dev/null
+            deleted=$((deleted + 1))
+            echo "RETIRED: $branch -> $archive_tag -> $branch_sha"
+          done
+
+          remaining=$(gh api --paginate "repos/$REPO/branches?per_page=100" --jq 'length' | awk '{s += $1} END {print s+0}')
+          echo "Branch hygiene: archived=$archived deleted=$deleted retained=$retained remaining=$remaining target=9"
+          [[ "$remaining" -eq 9 ]]
