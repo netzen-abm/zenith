@@ -1,20 +1,19 @@
 import { randomUUID } from 'node:crypto';
 import type { OperationEnvelope } from '../../contracts/src/operation.ts';
 import { ExecutionCoordinator, type ExecutionAuthorization, type ExecutionOutcomeRecorder, type ExecutionReservation } from '../../operation-queue/src/execution-coordinator.ts';
+import type { EvidenceAnnotationRepository } from './evidence-annotation/repository.ts';
 
 export type EvidenceAnnotationRequest = {
   resourceId: string; sourceId: string; evidenceType: string;
   locator?: Record<string, unknown>; excerpt?: string;
   evidencePayload?: Record<string, unknown>; epistemicStatus?: string; sensitivity?: string;
 };
-export type QueryExecutor = { query<T extends Record<string, unknown>>(sql: string, params: readonly unknown[]): Promise<T[]> };
-export type TransactionExecutor = { transaction<T>(work: (db: QueryExecutor) => Promise<T>): Promise<T> };
 type Context = { organisationId: string; identityId: string; purpose: string };
 
 export class EvidenceAnnotationCapability {
   private readonly coordinator: ExecutionCoordinator;
   constructor(
-    private readonly db: TransactionExecutor,
+    private readonly repository: EvidenceAnnotationRepository,
     authorization: ExecutionAuthorization,
     reservation: ExecutionReservation,
     outcomeRecorder: ExecutionOutcomeRecorder,
@@ -29,7 +28,7 @@ export class EvidenceAnnotationCapability {
     const requestId = randomUUID();
     const operation = this.operation(operationId, requestId, request, context);
     const result = await this.coordinator.execute(operation, async () => {
-      await this.persist(operation, requestId, request, context);
+      await this.repository.saveRequest(operation, request, context);
       operation.state = 'queued';
       return operation;
     });
@@ -46,32 +45,9 @@ export class EvidenceAnnotationCapability {
     };
   }
 
-  private async persist(operation: OperationEnvelope, requestId: string, request: EvidenceAnnotationRequest, context: Context): Promise<void> {
-    await this.db.transaction(async db => {
-      await db.query(
-        'insert into core.evidence_annotation_requests(id,organisation_id,identity_id,resource_id,source_id,evidence_type,locator,excerpt,evidence_payload,epistemic_status,sensitivity) values ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9::jsonb,$10,$11)',
-        [requestId, context.organisationId, context.identityId, request.resourceId, request.sourceId,
-          request.evidenceType, JSON.stringify(request.locator ?? {}), request.excerpt ?? null,
-          JSON.stringify(request.evidencePayload ?? {}), request.epistemicStatus ?? 'documented',
-          request.sensitivity ?? 'public'],
-      );
-      await db.query(
-        'insert into operations.operations(id,organisation_id,identity_id,idempotency_key,action,resource_id,purpose,expires_at,payload_ref) values ($1,$2,$3,$4,$5,$6,$7,clock_timestamp()+interval \'1 hour\',$8)',
-        [operation.operationId, context.organisationId, context.identityId, operation.idempotencyKey,
-          operation.action, request.resourceId, context.purpose, requestId],
-      );
-      await db.query('select operations.transition($1,\'created\',\'authorized\')', [operation.operationId]);
-      await db.query('select operations.transition($1,\'authorized\',\'queued\')', [operation.operationId]);
-    });
-  }
-
   private async handle(operation: OperationEnvelope) {
-    const rows = await this.db.transaction(db => db.query(
-      'select evidence_id, decision from core_private.consume_evidence_annotation_request($1::uuid)',
-      [operation.payloadRef],
-    ));
-    const result = rows[0];
-    if (!result || result.decision !== 'created') return { outcome: 'rejected' as const, errorCode: String(result?.decision ?? 'request_missing') };
-    return { outcome: 'acknowledged' as const, resultRef: String(result.evidence_id) };
+    const result = await this.repository.consumeRequest(operation.payloadRef);
+    if (!result || result.decision !== 'created') return { outcome: 'rejected' as const, errorCode: result?.decision ?? 'request_missing' };
+    return { outcome: 'acknowledged' as const, resultRef: result.evidenceId };
   }
 }
