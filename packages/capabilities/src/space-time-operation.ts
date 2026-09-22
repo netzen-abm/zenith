@@ -6,9 +6,7 @@ import type { SpaceTimeRequestRepository } from './space-time/repository.ts';
 
 export type SpaceTimeRepresentationRequest = Omit<SpatialRepresentation, 'id'> & { geom?: unknown };
 export type SpaceTimeExecutionContext = {
-  organisationId: string;
-  identityId: string;
-  purpose: string;
+  organisationId: string; identityId: string; purpose: string;
   authorization: ExecutionAuthorization;
   reservation: ExecutionReservation;
   outcomeRecorder: ExecutionOutcomeRecorder;
@@ -16,12 +14,7 @@ export type SpaceTimeExecutionContext = {
 
 export class SpaceTimeOperation {
   private readonly coordinator: ExecutionCoordinator;
-  private readonly repository: SpaceTimeRequestRepository;
-  private readonly context: SpaceTimeExecutionContext;
-
-  constructor(repository: SpaceTimeRequestRepository, context: SpaceTimeExecutionContext) {
-    this.repository = repository;
-    this.context = context;
+  constructor(private readonly repository: SpaceTimeRequestRepository, private readonly context: SpaceTimeExecutionContext) {
     this.coordinator = new ExecutionCoordinator(
       context.authorization, context.reservation,
       operation => this.handle(operation), context.outcomeRecorder,
@@ -34,17 +27,18 @@ export class SpaceTimeOperation {
     const representation = { ...request, id: requestId };
     validateSpatialRepresentation(representation);
     const operation: OperationEnvelope = {
-      operationId, idempotencyKey: operationId, action: 'space_time.spatial_representation_create',
+      operationId, idempotencyKey: operationId,
+      action: 'space_time.spatial_representation_create',
       resourceId: representation.resourceId, organisationId: this.context.organisationId,
       identityId: this.context.identityId, purpose: this.context.purpose, state: 'created',
       createdAt: new Date().toISOString(), attemptCount: 0, payloadRef: requestId,
     };
 
-    if (!await this.context.authorization.authorize(operation)) throw new Error('space_time_unauthorized');
-
-    await this.repository.saveRequest(operation, representation, requestId);
-    const result = await this.coordinator.execute(operation);
-    if (!result.executed) throw new Error('space_time_not_executed:' + result.decision);
+    const result = await this.coordinator.execute(
+      operation,
+      async () => { await this.repository.saveRequest(operation, representation, requestId); return operation; },
+    );
+    if (!result.executed) throw new Error(`space_time_not_executed:${result.decision}`);
     return operation;
   }
 
