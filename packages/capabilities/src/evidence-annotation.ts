@@ -30,7 +30,8 @@ export class EvidenceAnnotationCapability {
     const operation = this.operation(operationId, requestId, request, context);
     const result = await this.coordinator.execute(operation, async () => {
       await this.persist(operation, requestId, request, context);
-      return { ...operation, state: 'queued' };
+      operation.state = 'queued';
+      return operation;
     });
     if (!result.executed) throw new Error(`evidence_annotation_not_executed:${result.decision}`);
     return operation;
