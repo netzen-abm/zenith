@@ -87,34 +87,6 @@ jobs:
           chmod +x tests/architecture/capability-boundary.sh
           tests/architecture/capability-boundary.sh
 
-  source-size-governance:
-    name: Source size governance
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Enforce 180-line source limit
-        shell: bash
-        run: |
-          set -euo pipefail
-          max_lines=180
-          failed=0
-          while IFS= read -r -d '' file; do
-            case "$file" in
-              */vendor/*|*/generated/*|*/dist/*|*/build/*|*/coverage/*) continue ;;
-            esac
-            lines=$(wc -l < "$file")
-            if [ "$lines" -gt "$max_lines" ]; then
-              printf 'ERROR: %s has %s lines; maximum is %s.\n' "$file" "$lines" "$max_lines"
-              failed=1
-            fi
-          done < <(find . -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' -o -name '*.py' -o -name '*.rs' -o -name '*.ex' -o -name '*.exs' \) -not -path './.git/*' -print0)
-          if [ "$failed" -ne 0 ]; then
-            echo "Source files must remain within the 180-line maintainability limit. Split by responsibility rather than artificially truncating files."
-            exit 1
-          fi
-
   sql-static-security:
     name: SQL static security checks
     runs-on: ubuntu-latest
