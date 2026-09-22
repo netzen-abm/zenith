@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
   pull-requests: read
 
 concurrency:
@@ -22,7 +22,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Archive and retire non-canonical branches
+      - name: Audit canonical branch budget
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -65,6 +65,7 @@ jobs:
           }
 
           unexpected=0
+          retained=0
 
           for branch in "${branches[@]}"; do
             if is_protected "$branch"; then
