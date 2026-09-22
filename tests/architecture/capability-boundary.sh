@@ -5,18 +5,8 @@ set -euo pipefail
 # Capabilities may depend on contracts and execution interfaces, but must not
 # introduce new provider/persistence implementations or alternate trust paths.
 #
-# Known legacy persistence implementations are temporarily allow-listed while
-# their canonical branches converge them behind repository ports.
-
 failed=0
 
-is_legacy() {
-  local file="$1"
-  for allowed in "${legacy_persistence[@]}"; do
-    [[ "$file" == "$allowed" ]] && return 0
-  done
-  return 1
-}
 
 while IFS= read -r -d '' file; do
   case "$file" in
