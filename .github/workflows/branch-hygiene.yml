@@ -49,8 +49,8 @@ jobs:
             return 1
           }
 
-          mapfile -t branch_records < <(
-            gh api --paginate "repos/$REPO/branches?per_page=100" --jq '.[] | [.name, .commit.sha] | @base64'
+          mapfile -t branches < <(
+            gh api --paginate "repos/$REPO/branches?per_page=100" --jq '.[].name'
           )
           mapfile -t open_pr_branches < <(
             gh pr list --repo "$REPO" --state open --json headRefName --jq '.[].headRefName'
@@ -81,9 +81,7 @@ jobs:
           retained=0
           archived=0
 
-          for record in "${branch_records[@]}"; do
-            record=$(printf '%s' "$record" | base64 -d)\n            IFS=
-
+          for branch in "${branches[@]}"; do
             if is_protected "$branch"; then
               echo "KEEP protected: $branch"
               continue
@@ -95,9 +93,10 @@ jobs:
               continue
             fi
 
+            branch_sha=$(gh api "repos/$REPO/branches/$branch" --jq '.commit.sha')
             archive_tag="archive/branches/${branch//\//--}"
 
-            if git ls-remote --exit-code --refs origin "refs/tags/$archive_tag" >/dev/null 2>&1; then
+            if gh api "repos/$REPO/git/ref/tags/$archive_tag" >/dev/null 2>&1; then
               archived_sha=$(resolve_tag_commit "$archive_tag")
               if [[ "$archived_sha" != "$branch_sha" ]]; then
                 echo "::error::Archive tag $archive_tag exists at $archived_sha, expected $branch_sha; RETAIN branch."
@@ -108,7 +107,7 @@ jobs:
             else
               if ! gh api --method POST "repos/$REPO/git/refs" \
                 -f "ref=refs/tags/$archive_tag" \
-                -f "sha=$branch_sha"; then
+                -f "sha=$branch_sha" >/dev/null; then
                 echo "::error::Archive creation failed for $branch; RETAIN branch."
                 retained=$((retained + 1))
                 continue
@@ -124,7 +123,7 @@ jobs:
               continue
             fi
 
-            if gh api --method DELETE "repos/$REPO/git/refs/heads/$branch"; then
+            if gh api --method DELETE "repos/$REPO/git/refs/heads/$branch" >/dev/null; then
               echo "DELETE archived non-canonical branch: $branch"
               deleted=$((deleted + 1))
             else
