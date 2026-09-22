@@ -8,11 +8,6 @@ set -euo pipefail
 # Known legacy persistence implementations are temporarily allow-listed while
 # their canonical branches converge them behind repository ports.
 
-legacy_persistence=(
-  "packages/capabilities/src/knowledge-graph-operation.ts"
-  "packages/capabilities/src/space-time-operation.ts"
-)
-
 failed=0
 
 is_legacy() {
@@ -37,10 +32,6 @@ while IFS= read -r -d '' file; do
   if grep -En "require\(['\"](.*core/database|.*adapters|.*infrastructure|.*supabase|pg|postgres)['\"]\)" "$file" >/dev/null; then
     echo "ERROR: capability source requires infrastructure/provider implementation: $file"
     failed=1
-  fi
-
-  if is_legacy "$file"; then
-    continue
   fi
 
   if grep -En "db\.query\(|\.transaction\(.*=>|TransactionExecutor|type Db =" "$file" >/dev/null; then
