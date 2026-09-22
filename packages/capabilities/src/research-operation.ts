@@ -23,7 +23,8 @@ export class ResearchOperation {
     const operation = this.createOperation(query);
     const result = await this.coordinator.execute(operation, async () => {
       const payloadRef = await this.store.save(query);
-      return { ...operation, payloadRef };
+      operation.payloadRef = payloadRef;
+      return operation;
     });
     if (!result.executed) throw new Error('research_not_executed:' + result.decision);
     return operation;
