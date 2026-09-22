@@ -1,5 +1,5 @@
 import { SpaceTimeOperation } from './space-time-operation.ts';
-import { PostgresSpaceTimeRequestRepository } from './space-time/postgres-repository.ts';
+import { PostgresSpaceTimeRequestRepository } from '../../adapters/src/space-time/postgres-repository.ts';
 
 const calls: string[] = [];
 const db = {
