@@ -48,3 +48,6 @@ Do not create branches merely because a file or class is large.
 ## Enforcement
 
 .github/workflows/branch-hygiene.yml archives and retires non-canonical branches and fails unless exactly nine active branches remain.
+
+
+Last hygiene engine hardening: 2026-09-22T14:22:45.275Z
