@@ -38,11 +38,22 @@ export class ExecutionCoordinator {
     if (!await this.authorization.authorize(operation)) {
       return { executed: false, decision: 'deny_authorization' };
     }
-    const prepared = prepare ? await prepare(operation) : undefined;
-    const preparedOperation = prepared ?? operation;
-    const reserved = await this.reservation.reserve(preparedOperation.operationId);
+    const reserved = await this.reservation.reserve(operation.operationId);
     if (!reserved.allowed) {
       return { executed: false, decision: 'deny_reservation' };
+    }
+    let preparedOperation = operation;
+    try {
+      const prepared = prepare ? await prepare(operation) : undefined;
+      preparedOperation = prepared ?? operation;
+    } catch (error) {
+      const outcome: ExecutionOutcome = {
+        outcome: 'rejected',
+        errorCode: error instanceof Error ? error.message : 'execution_preparation_failed',
+      };
+      const durable = await this.outcomeRecorder.record(operation, outcome);
+      if (!durable.recorded) throw new Error(`execution_outcome_not_durable:${durable.decision}`);
+      return { executed: false, decision: 'allow' };
     }
     const executionOperation = reserved.attemptCount === undefined
       ? preparedOperation
