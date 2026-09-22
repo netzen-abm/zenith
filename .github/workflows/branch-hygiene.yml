@@ -15,7 +15,6 @@ concurrency:
 
 jobs:
   collective-retirement:
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'chore: execute collective branch retirement')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout complete history
@@ -30,6 +29,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          if [[ "${GITHUB_EVENT_NAME}" != "workflow_dispatch" && "${{ github.event.head_commit.message }}" != "chore: execute collective branch retirement" ]]; then
+            echo "Retirement guard: this is not the designated collective-retirement commit. Exiting without changes."
+            exit 0
+          fi
 
           protected=(
             "main"
@@ -148,3 +152,4 @@ jobs:
           done
 
           echo "ZENITH collective branch retirement PASSED: exactly 9 canonical branches remain."
+          # Collective retirement completed; subsequent pushes are guarded by commit message.
