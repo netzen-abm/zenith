@@ -92,10 +92,18 @@ jobs:
               fi
               echo "ARCHIVE already present: $archive_tag -> $branch_sha"
             else
-              git tag -a "$archive_tag" "$branch_sha" -m "Archive retired branch $branch at $branch_sha"
-              git push origin "$archive_tag"
+              gh api --method POST "repos/$REPO/git/refs" \
+                -f "ref=refs/tags/$archive_tag" \
+                -f "sha=$branch_sha"
               echo "ARCHIVE created: $archive_tag -> $branch_sha"
               archived=$((archived + 1))
+            fi
+
+            echo "VERIFY archive before deletion: $archive_tag -> $branch_sha"
+            archived_sha=$(gh api "repos/$REPO/git/ref/tags/$archive_tag" --jq '.object.sha')
+            if [[ "$archived_sha" != "$branch_sha" ]]; then
+              echo "::error::Archive verification failed for $branch: $archived_sha != $branch_sha"
+              exit 1
             fi
 
             echo "DELETE archived non-canonical branch: $branch"
