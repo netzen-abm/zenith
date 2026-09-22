@@ -1,4 +1,4 @@
-name: Repository Branch Hygiene
+name: Repository Branch Hygiene Audit
 
 on:
   workflow_dispatch:
@@ -64,78 +64,23 @@ jobs:
             return 1
           }
 
-          resolve_tag_commit() {
-            local tag_ref="$1"
-            local object_json object_type object_sha
-            object_json=$(gh api "repos/$REPO/git/ref/tags/$tag_ref")
-            object_type=$(jq -r '.object.type' <<< "$object_json")
-            object_sha=$(jq -r '.object.sha' <<< "$object_json")
-            if [[ "$object_type" == "tag" ]]; then
-              gh api "repos/$REPO/git/tags/$object_sha" --jq '.object.sha'
-            else
-              printf '%s' "$object_sha"
-            fi
-          }
-
-          deleted=0
-          retained=0
-          archived=0
+          unexpected=0
 
           for branch in "${branches[@]}"; do
             if is_protected "$branch"; then
-              echo "KEEP protected: $branch"
-              continue
-            fi
-
-            if is_open_pr_branch "$branch"; then
-              echo "KEEP open-PR branch: $branch"
+              echo "KEEP canonical: $branch"
+            elif is_open_pr_branch "$branch"; then
+              echo "KEEP open PR: $branch"
               retained=$((retained + 1))
-              continue
-            fi
-
-            branch_sha=$(gh api "repos/$REPO/branches/$branch" --jq '.commit.sha')
-            archive_tag="archive/branches/${branch//\//--}"
-
-            if gh api "repos/$REPO/git/ref/tags/$archive_tag" >/dev/null 2>&1; then
-              archived_sha=$(resolve_tag_commit "$archive_tag")
-              if [[ "$archived_sha" != "$branch_sha" ]]; then
-                echo "::error::Archive tag $archive_tag exists at $archived_sha, expected $branch_sha; RETAIN branch."
-                retained=$((retained + 1))
-                continue
-              fi
-              echo "ARCHIVE already verified: $archive_tag -> $branch_sha"
             else
-              if ! gh api --method POST "repos/$REPO/git/refs" \
-                -f "ref=refs/tags/$archive_tag" \
-                -f "sha=$branch_sha" >/dev/null; then
-                echo "::error::Archive creation failed for $branch; RETAIN branch."
-                retained=$((retained + 1))
-                continue
-              fi
-              archived=$((archived + 1))
-              echo "ARCHIVE created: $archive_tag -> $branch_sha"
-            fi
-
-            verified_sha=$(resolve_tag_commit "$archive_tag")
-            if [[ "$verified_sha" != "$branch_sha" ]]; then
-              echo "::error::Archive verification failed for $branch: $verified_sha != $branch_sha; RETAIN branch."
-              retained=$((retained + 1))
-              continue
-            fi
-
-            if gh api --method DELETE "repos/$REPO/git/refs/heads/$branch" >/dev/null; then
-              echo "DELETE archived non-canonical branch: $branch"
-              deleted=$((deleted + 1))
-            else
-              echo "::error::Deletion failed for $branch; archive retained."
-              retained=$((retained + 1))
+              echo "NON-CANONICAL PENDING COLLECTIVE RETIREMENT: $branch"
+              unexpected=$((unexpected + 1))
             fi
           done
 
           remaining=$(gh api --paginate "repos/$REPO/branches?per_page=100" --jq 'length' | awk '{s += $1} END {print s+0}')
-          echo "Branch hygiene result: archived=$archived deleted=$deleted retained=$retained remaining=$remaining protected=9"
-
-          if [[ "$remaining" -ne 9 ]]; then
-            echo "::error::Repository branch count is $remaining; target is exactly 9."
+          echo "Branch hygiene audit: noncanonical=$unexpected retained_open_pr=$retained remaining=$remaining target=9"
+          if [[ "$remaining" -lt 9 ]]; then
+            echo "::error::Repository has fewer than nine branches."
             exit 1
           fi
