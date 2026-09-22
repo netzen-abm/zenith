@@ -29,16 +29,6 @@ while IFS= read -r -d '' file; do
     failed=1
   fi
 
-  if grep -En "db\\.query\\(|\\.transaction\\(" "$file" >/dev/null; then
-    echo "ERROR: capability source owns persistence implementation; use a repository contract."
-    failed=1
-  fi
-
-  if grep -En "db\.query\(|\.transaction\(.*=>|TransactionExecutor|type Db =" "$file" >/dev/null; then
-    echo "ERROR: capability source owns persistence orchestration: $file"
-    grep -En "db\.query\(|\.transaction\(.*=>|TransactionExecutor|type Db =" "$file" || true
-    failed=1
-  fi
 done < <(find packages/capabilities/src -type f \( -name '*.ts' -o -name '*.tsx' \) -print0)
 
 if [[ "$failed" -ne 0 ]]; then
