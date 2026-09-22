@@ -1,4 +1,5 @@
 import { SpaceTimeOperation } from './space-time-operation.ts';
+import { PostgresSpaceTimeRequestRepository } from './space-time/postgres-repository.ts';
 
 const calls: string[] = [];
 const db = {
@@ -17,7 +18,7 @@ const context = {
   reservation: { reserve: async () => ({ allowed: true, decision: 'allow', attemptCount: 1 }) },
   outcomeRecorder: { record: async () => ({ recorded: true, decision: 'allow' }) },
 };
-await new SpaceTimeOperation(db, context).execute({
+await new SpaceTimeOperation(new PostgresSpaceTimeRequestRepository(db), context).execute({
   resourceId: 'site-1', representationType: 'point', precisionLevel: 'generalized', coordinateConfidence: 0.8,
 });
 if (!calls.some(sql => sql.includes('consume_space_time_representation_request'))) {
