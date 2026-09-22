@@ -22,7 +22,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Retire branches safely
+      - name: Archive and retire non-canonical branches
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -55,6 +55,7 @@ jobs:
 
           deleted=0
           retained=0
+          archived=0
 
           git fetch origin main --prune
 
@@ -71,7 +72,7 @@ jobs:
             fi
 
             repo_owner="${REPO%%/*}"
-            head_ref="${repo_owner}:$branch"
+            head_ref="$repo_owner:$branch"
 
             open_prs=$(gh pr list --repo "$REPO" --state open --head "$head_ref" --json number --jq 'length')
             if [[ "$open_prs" != "0" ]]; then
@@ -80,32 +81,30 @@ jobs:
               continue
             fi
 
-            merged_prs=$(gh pr list --repo "$REPO" --state merged --head "$head_ref" --json number --jq 'length')
-            if [[ "$merged_prs" != "0" ]]; then
-              echo "DELETE merged-PR branch: $branch"
-              gh api --method DELETE "repos/$REPO/git/refs/heads/$branch"
-              deleted=$((deleted + 1))
-              continue
-            fi
+            branch_sha=$(git rev-parse "origin/$branch")
+            archive_tag="archive/branches/${branch//\//--}"
 
-            mapfile -t cherry_status < <(git cherry origin/main "origin/$branch")
-            unique=0
-            for entry in "${cherry_status[@]}"; do
-              [[ "$entry" == +* ]] && unique=$((unique + 1))
-            done
-
-            if [[ "$unique" == "0" ]]; then
-              echo "DELETE patch-equivalent branch: $branch"
-              gh api --method DELETE "repos/$REPO/git/refs/heads/$branch"
-              deleted=$((deleted + 1))
+            if git ls-remote --exit-code --refs origin "refs/tags/$archive_tag" >/dev/null 2>&1; then
+              tag_sha=$(git ls-remote origin "refs/tags/$archive_tag" | awk '{print $1}')
+              if [[ "$tag_sha" != "$branch_sha" ]]; then
+                echo "::error::Archive tag $archive_tag already exists at $tag_sha, expected $branch_sha."
+                exit 1
+              fi
+              echo "ARCHIVE already present: $archive_tag -> $branch_sha"
             else
-              echo "RETAIN unique unmerged work: $branch (unique_commits=$unique)"
-              retained=$((retained + 1))
+              git tag -a "$archive_tag" "$branch_sha" -m "Archive retired branch $branch at $branch_sha"
+              git push origin "$archive_tag"
+              echo "ARCHIVE created: $archive_tag -> $branch_sha"
+              archived=$((archived + 1))
             fi
+
+            echo "DELETE archived non-canonical branch: $branch"
+            gh api --method DELETE "repos/$REPO/git/refs/heads/$branch"
+            deleted=$((deleted + 1))
           done
 
           remaining=$(gh api --paginate "repos/$REPO/branches?per_page=100" --jq 'length' | awk '{s += $1} END {print s+0}')
-          echo "Branch hygiene result: deleted=$deleted retained=$retained remaining=$remaining protected=9"
+          echo "Branch hygiene result: archived=$archived deleted=$deleted retained=$retained remaining=$remaining protected=9"
 
           if [[ "$remaining" -ne 9 ]]; then
             echo "::error::Repository branch count is $remaining; target is exactly 9."
