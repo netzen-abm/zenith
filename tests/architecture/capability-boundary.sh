@@ -34,6 +34,16 @@ while IFS= read -r -d '' file; do
     failed=1
   fi
 
+  if grep -En "(context\\.)?authorization\\.authorize\\(|this\\.authorization\\.authorize\\(" "$file" >/dev/null; then
+    echo "ERROR: capability source owns authorization execution; use ExecutionCoordinator."
+    failed=1
+  fi
+
+  if grep -En "db\\.query\\(|\\.transaction\\(" "$file" >/dev/null; then
+    echo "ERROR: capability source owns persistence implementation; use a repository contract."
+    failed=1
+  fi
+
   if grep -En "db\.query\(|\.transaction\(.*=>|TransactionExecutor|type Db =" "$file" >/dev/null; then
     echo "ERROR: capability source owns persistence orchestration: $file"
     grep -En "db\.query\(|\.transaction\(.*=>|TransactionExecutor|type Db =" "$file" || true
