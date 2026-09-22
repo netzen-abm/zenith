@@ -11,7 +11,7 @@ permissions:
 
 concurrency:
   group: branch-hygiene
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   retire-safe-branches:
@@ -49,66 +49,88 @@ jobs:
             return 1
           }
 
-          mapfile -t branches < <(
-            gh api --paginate "repos/$REPO/branches?per_page=100" --jq '.[].name'
+          mapfile -t branch_records < <(
+            gh api --paginate "repos/$REPO/branches?per_page=100" --jq '.[] | [.name, .commit.sha] | @tsv'
           )
+          mapfile -t open_pr_branches < <(
+            gh pr list --repo "$REPO" --state open --json headRefName --jq '.[].headRefName'
+          )
+
+          is_open_pr_branch() {
+            local candidate="$1"
+            for open_branch in "${open_pr_branches[@]}"; do
+              [[ "$candidate" == "$open_branch" ]] && return 0
+            done
+            return 1
+          }
+
+          resolve_tag_commit() {
+            local tag_ref="$1"
+            local object_json object_type object_sha
+            object_json=$(gh api "repos/$REPO/git/ref/tags/$tag_ref")
+            object_type=$(jq -r '.object.type' <<< "$object_json")
+            object_sha=$(jq -r '.object.sha' <<< "$object_json")
+            if [[ "$object_type" == "tag" ]]; then
+              gh api "repos/$REPO/git/tags/$object_sha" --jq '.object.sha'
+            else
+              printf '%s' "$object_sha"
+            fi
+          }
 
           deleted=0
           retained=0
           archived=0
 
-          git fetch origin main --prune
+          for record in "${branch_records[@]}"; do
+            IFS=$'\t' read -r branch branch_sha <<< "$record"
 
-          for branch in "${branches[@]}"; do
             if is_protected "$branch"; then
               echo "KEEP protected: $branch"
               continue
             fi
 
-            if ! git fetch origin "refs/heads/$branch:refs/remotes/origin/$branch" --quiet; then
-              echo "RETAIN fetch-failed: $branch"
-              retained=$((retained + 1))
-              continue
-            fi
-
-            repo_owner="${REPO%%/*}"
-            head_ref="$repo_owner:$branch"
-
-            open_prs=$(gh pr list --repo "$REPO" --state open --head "$head_ref" --json number --jq 'length')
-            if [[ "$open_prs" != "0" ]]; then
+            if is_open_pr_branch "$branch"; then
               echo "KEEP open-PR branch: $branch"
               retained=$((retained + 1))
               continue
             fi
 
-            branch_sha=$(git rev-parse "origin/$branch")
             archive_tag="archive/branches/${branch//\//--}"
 
             if git ls-remote --exit-code --refs origin "refs/tags/$archive_tag" >/dev/null 2>&1; then
-              tag_sha=$(git ls-remote origin "refs/tags/$archive_tag" | awk '{print $1}')
-              if [[ "$tag_sha" != "$branch_sha" ]]; then
-                echo "::error::Archive tag $archive_tag already exists at $tag_sha, expected $branch_sha."
-                exit 1
+              archived_sha=$(resolve_tag_commit "$archive_tag")
+              if [[ "$archived_sha" != "$branch_sha" ]]; then
+                echo "::error::Archive tag $archive_tag exists at $archived_sha, expected $branch_sha; RETAIN branch."
+                retained=$((retained + 1))
+                continue
               fi
-              echo "ARCHIVE already present: $archive_tag -> $branch_sha"
+              echo "ARCHIVE already verified: $archive_tag -> $branch_sha"
             else
-              gh api --method POST "repos/$REPO/git/refs" \
+              if ! gh api --method POST "repos/$REPO/git/refs" \
                 -f "ref=refs/tags/$archive_tag" \
-                -f "sha=$branch_sha"
-              echo "ARCHIVE created: $archive_tag -> $branch_sha"
+                -f "sha=$branch_sha"; then
+                echo "::error::Archive creation failed for $branch; RETAIN branch."
+                retained=$((retained + 1))
+                continue
+              fi
               archived=$((archived + 1))
+              echo "ARCHIVE created: $archive_tag -> $branch_sha"
             fi
 
-            echo "VERIFY archive before deletion: $archive_tag -> $branch_sha"
-            archived_sha=$(gh api "repos/$REPO/git/ref/tags/$archive_tag" --jq '.object.sha')
-            if [[ "$archived_sha" != "$branch_sha" ]]; then
-              echo "::error::Archive verification failed for $branch: $archived_sha != $branch_sha"
-              exit 1
+            verified_sha=$(resolve_tag_commit "$archive_tag")
+            if [[ "$verified_sha" != "$branch_sha" ]]; then
+              echo "::error::Archive verification failed for $branch: $verified_sha != $branch_sha; RETAIN branch."
+              retained=$((retained + 1))
+              continue
             fi
 
-            echo "DELETE archived non-canonical branch: $branch"
-            gh api --method DELETE "repos/$REPO/git/refs/heads/$branch"
-            deleted=$((deleted + 1))
+            if gh api --method DELETE "repos/$REPO/git/refs/heads/$branch"; then
+              echo "DELETE archived non-canonical branch: $branch"
+              deleted=$((deleted + 1))
+            else
+              echo "::error::Deletion failed for $branch; archive retained."
+              retained=$((retained + 1))
+            fi
           done
 
           remaining=$(gh api --paginate "repos/$REPO/branches?per_page=100" --jq 'length' | awk '{s += $1} END {print s+0}')
