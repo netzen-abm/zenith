@@ -36,7 +36,7 @@ export class SpaceTimeOperation {
 
     const result = await this.coordinator.execute(
       operation,
-      async () => { await this.repository.saveRequest(operation, representation, requestId); return operation; },
+      async () => { await this.repository.saveRequest(operation, representation, requestId); operation.state = 'queued'; return operation; },
     );
     if (!result.executed) throw new Error(`space_time_not_executed:${result.decision}`);
     return operation;
