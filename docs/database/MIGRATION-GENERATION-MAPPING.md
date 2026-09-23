@@ -1,11 +1,11 @@
 # Live Migration Generation Mapping
 
-**Status:** In progress — mapping baseline  
+**Status:** In progress — historical mapping re-baselined 2026-09-23  
 **Purpose:** Convert the verified deployed Core contract into an explicit repository reconciliation plan without destructive recreation or speculative production DDL.
 
 ## 1. Mapping rule
 
-The deployed Supabase Core contains 14 migration generations. Repository `main` now contains the initial kernel, capability boundary, foundation reconciliation, and evidence/provenance reconciliation; this branch adds the Knowledge Graph relationship/assertion unit. The repository is **not yet a complete historical migration ledger**.
+The deployed Supabase Core contains 14 migration generations. Repository `main` now contains the initial kernel, capability boundary, foundation reconciliation, evidence/provenance reconciliation, Knowledge Graph (`0019`), Space/Time (`0020`), and Field Observation (`0021`) units. These are bounded forward reconciliation units; filename parity with the 14 historical deployed generations is not the acceptance criterion. The repository is **not yet a complete historical migration ledgerger**.
 
 This document distinguishes historical generation, repository representation, reconciliation artifact, and verification artifact. The objective is behavioral parity, not filename parity.
 
