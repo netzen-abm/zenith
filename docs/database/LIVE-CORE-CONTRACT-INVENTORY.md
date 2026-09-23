@@ -1,12 +1,12 @@
 # Live Core Contract Inventory
 
-**Date:** 2026-09-16  
+**Date:** 2026-09-23 — re-baselined against current `main`  
 **Project:** ZENITH / Past Intelligence Core  
 **Purpose:** Evidence baseline for migration/schema convergence.
 
-## 1. Verified migration history
+## 1. Verified migration history and current repository state
 
-The deployed Supabase project currently reports 14 migration generations:
+The deployed Supabase project baseline currently reports 14 historical migration generations. The repository has since advanced through migration `0021_field_observation_requests.sql` using bounded forward reconciliation units. Therefore the historical 14-generation count remains evidence about the deployed lineage, not a count of repository migration files.
 
 1. `past_intelligence_core_security_kernel_v0_1`
 2. `tighten_public_data_api_surface`
