@@ -132,8 +132,11 @@ A domain capability may add domain behavior, but it may not create a competing a
 
 ## Current verified state — 2026-09-23
 
-Remote inventory was re-read from GitHub and contains **24 branches**, not nine. The eight non-main branches selected as the intended active workstreams are:
+The live GitHub remote was re-read and contains **24 branches**. `main` is authoritative. The nine intended active slots remain an architectural target, but the remote count is not yet compliant because this connected GitHub interface exposes no remote-branch deletion operation.
 
+The canonical active workstream set remains:
+
+- `main`
 - `feat/ai-agent-infrastructure`
 - `feat/api-sdk-contracts`
 - `feat/field-acquisition`
@@ -143,19 +146,18 @@ Remote inventory was re-read from GitHub and contains **24 branches**, not nine.
 - `feat/security-release-engineering`
 - `feat/space-time-next`
 
-The remaining 15 branches are retirement candidates or require content review. Several of the selected workstream branches are already substantially behind `main`; they must not be blindly merged merely to preserve their names. Their role is to identify the intended workstream slots, while `main` remains the current integration authority.
+Current branch comparisons show multiple survivors are stale or already integrated. In particular, `feat/operation-queue-runtime-mainline`, `feat/persistent-execution-reservation`, `feat/postgres-coordinator-e2e-converged`, `fix/operation-store-mutation-boundary`, `refactor/canonical-execution-lifecycle`, and `test/operations-concurrency-gate` are behind `main` with no unique commits ahead. They should be retired rather than merged.
 
-The connected GitHub interface currently exposes branch listing, creation, ref updates, and PR operations, but **does not expose a GitHub remote-branch deletion operation**. Therefore the repository cannot honestly be reduced to nine remote refs from this interface without violating the no-force-move rule.
+Other branches contain unique historical work but are materially behind `main`; they require content-level transfer analysis, not blind merging. Examples include operations persistence, PostgreSQL reservation adapter, research-intelligence capability, research-provider contract, vertical evidence annotation, knowledge graph, space-time, authorization-context, auth integration contract, fresh-DB harness and the migration-parity revert. The fact that a branch contains unique commits does not establish that those commits remain needed; the current `main` tree must be the source of truth for deciding transfer versus retirement.
 
-## Enforcement decision
-
-Until deletion authority is available:
+### Enforcement decision
 
 1. Do not force-move any branch to `main` as a substitute for deletion.
 2. Do not create placeholder branches.
 3. Do not merge stale work merely to retire a branch.
-4. Keep `main` authoritative for integrated code.
-5. Preserve the nine-slot workstream model in governance and CI.
-6. Re-run the remote inventory after every retirement action.
+4. Transfer only genuinely missing, still-required work through reviewed commits/PRs.
+5. Retire branches that add no current value once remote deletion is performed from a client with branch-delete authority.
+6. Re-read the remote inventory after every retirement action.
+7. Update CI's nine-branch allowlist only after the remote inventory actually reaches the canonical nine.
 
-The nine-branch target is therefore **architecturally selected but operationally blocked by remote-delete capability**, not falsely reported as complete.
+The nine-branch target is therefore **architecturally selected but operationally not yet complete**.
