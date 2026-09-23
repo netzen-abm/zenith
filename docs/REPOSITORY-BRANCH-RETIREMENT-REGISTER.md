@@ -130,8 +130,32 @@ All active capabilities must consume the shared chain:
 
 A domain capability may add domain behavior, but it may not create a competing authorization, tenant-isolation, lifecycle, reservation, idempotency, audit, or protected-mutation mechanism.
 
-## Current blocker
+## Current verified state — 2026-09-23
 
-The connected GitHub interface currently exposes branch listing, creation, ref updates, and PR operations, but not remote branch deletion. Until a genuine delete operation is available, branches must not be force-moved or otherwise mutated merely to simulate deletion.
+Remote inventory was re-read from GitHub and contains **24 branches**, not nine. The eight non-main branches selected as the intended active workstreams are:
 
-Once deletion is available, execute the register as a retirement sweep and re-audit the remote inventory until the repository contains exactly nine genuine active branches.
+- `feat/ai-agent-infrastructure`
+- `feat/api-sdk-contracts`
+- `feat/field-acquisition`
+- `feat/knowledge-graph-next`
+- `feat/multisurface-adapters`
+- `feat/research-intelligence-next`
+- `feat/security-release-engineering`
+- `feat/space-time-next`
+
+The remaining 15 branches are retirement candidates or require content review. Several of the selected workstream branches are already substantially behind `main`; they must not be blindly merged merely to preserve their names. Their role is to identify the intended workstream slots, while `main` remains the current integration authority.
+
+The connected GitHub interface currently exposes branch listing, creation, ref updates, and PR operations, but **does not expose a GitHub remote-branch deletion operation**. Therefore the repository cannot honestly be reduced to nine remote refs from this interface without violating the no-force-move rule.
+
+## Enforcement decision
+
+Until deletion authority is available:
+
+1. Do not force-move any branch to `main` as a substitute for deletion.
+2. Do not create placeholder branches.
+3. Do not merge stale work merely to retire a branch.
+4. Keep `main` authoritative for integrated code.
+5. Preserve the nine-slot workstream model in governance and CI.
+6. Re-run the remote inventory after every retirement action.
+
+The nine-branch target is therefore **architecturally selected but operationally blocked by remote-delete capability**, not falsely reported as complete.
