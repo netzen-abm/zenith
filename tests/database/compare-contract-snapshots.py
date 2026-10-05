@@ -17,8 +17,12 @@ def main():
     for name in FILES:
         a,b=read(fresh,name),read(live,name)
         if name=="extensions":
-            if a!=b:
-                print("INFO: extension versions differ; classify platform-managed differences separately.")
+            if {line.split(":",1)[0] for line in a} != {line.split(":",1)[0] for line in b}:
+                failures += 1
+                print("FAIL: required extension set differs")
+                print("\n".join(difflib.unified_diff(a,b,fromfile="fresh/extensions",tofile="live/extensions",lineterm="")))
+            elif a != b:
+                print("INFO: extension versions differ; classify platform-managed version differences separately.")
             continue
         if a==b:
             print(f"PASS: {name}")
