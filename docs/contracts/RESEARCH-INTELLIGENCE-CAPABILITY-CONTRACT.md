@@ -88,4 +88,4 @@ Protected content itself must not be duplicated into audit or outbox records mer
 
 ## Conformance
 
-The implementation must pass the shared capability conformance gate and keep every source file at or below 180 lines.
+The implementation must pass the shared capability conformance gate. Source-file size is a review signal only; decomposition is governed by independent architectural boundaries, not an arbitrary line-count threshold.
