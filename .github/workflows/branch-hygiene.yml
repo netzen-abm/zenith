@@ -89,12 +89,12 @@ jobs:
           done
 
           if [[ "${#branches[@]}" -ne 64 ]]; then
-            echo "::error::Expected 64 branches before collective retirement; found ${#branches[@]}."
+            echo "::error::Expected 24 branches before collective retirement; found ${#branches[@]}."
             exit 1
           fi
 
           if [[ "${#noncanonical[@]}" -ne 55 ]]; then
-            echo "::error::Expected 55 non-canonical branches; found ${#noncanonical[@]}."
+            echo "::error::Expected 15 non-canonical branches; found ${#noncanonical[@]}."
             exit 1
           fi
 
@@ -124,7 +124,7 @@ jobs:
             fi
           done
 
-          echo "All 55 branches archived. Beginning collective deletion."
+          echo "All 15 branches archived. Beginning collective deletion."
 
           for branch in "${noncanonical[@]}"; do
             gh api --method DELETE "repos/$REPO/git/refs/heads/$branch" >/dev/null
