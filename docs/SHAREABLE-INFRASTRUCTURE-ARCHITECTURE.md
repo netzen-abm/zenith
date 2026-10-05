@@ -1,7 +1,7 @@
 # ZENITH Shareable Infrastructure Architecture
 
 **Status:** Adopted baseline  
-**Date:** 2026-09-23
+**Date:** 2026-10-05
 
 ## 1. Architectural objective
 
@@ -104,7 +104,13 @@ Every new shared capability must identify:
 
 Changes to Core authorities or execution-kernel invariants require an ADR plus corresponding positive and negative tests.
 
-## 8. Repository topology
+## 8. Dependency and portability rule
+
+No irreversible dependency is permitted without an explicit architecture decision. New database, cloud, AI-model, hardware, proprietary SDK, external API, programming-language or license dependencies must document replacement feasibility and the boundary that contains the dependency.
+
+Provider-specific code belongs behind adapters. Canonical Core contracts remain provider-neutral. This preserves the ecosystem's ability to replace infrastructure components without rebuilding domain semantics.
+
+## 9. Repository topology
 
 No root `src/` directory is required. Top-level architectural boundaries remain visible:
 
@@ -112,6 +118,6 @@ No root `src/` directory is required. Top-level architectural boundaries remain 
 
 Package-level `src/` directories remain valid when a package is itself an independent build or distribution boundary.
 
-## 9. Definition of done
+## 10. Definition of done
 
 A capability is not ecosystem-ready merely because its domain code works. It must consume the shared identity, authorization, tenant/RLS, capability, operation, reservation, durable outcome, outbox and provenance infrastructure and pass the relevant architecture, security, fresh-database, concurrency and integration gates.
