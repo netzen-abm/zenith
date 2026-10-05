@@ -28,12 +28,12 @@ async function build(overrides: Partial<ResearchQuery> = {}, authorization = tru
 
 {
   const x = await build({}, false);
-  await assert.rejects(() => x.operation.execute(x.query), /research_unauthorized/);
+  await assert.rejects(() => x.operation.execute(x.query), /research_not_executed:deny_authorization/);
   assert.equal(x.store.has(x.query.queryId), false);
   assert.deepEqual(x.calls, ['authorize']);
 }
 {
   const x = await build({}, true, false);
   await assert.rejects(() => x.operation.execute(x.query), /research_not_executed:deny_reservation/);
-  assert.deepEqual(x.calls, ['authorize', 'authorize', 'reserve']);
+  assert.deepEqual(x.calls, ['authorize', 'reserve']);
 }
