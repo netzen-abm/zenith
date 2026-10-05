@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
   pull-requests: read
 
 concurrency:
@@ -14,26 +14,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  collective-retirement:
+  audit:
+    name: Audit exact nine-branch budget
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout complete history
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-
-      - name: Archive and collectively retire non-canonical branches
+      - name: Verify canonical remote inventory
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
         shell: bash
         run: |
           set -euo pipefail
-
-          if [[ "${GITHUB_EVENT_NAME}" != "workflow_dispatch" && "${{ github.event.head_commit.message }}" != "chore: execute collective branch retirement" ]]; then
-            echo "Retirement guard: this is not the designated collective-retirement commit. Exiting without changes."
-            exit 0
-          fi
 
           protected=(
             "main"
@@ -47,109 +38,27 @@ jobs:
             "feat/field-acquisition"
           )
 
-          is_protected() {
-            local candidate="$1"
-            for branch in "${protected[@]}"; do
-              [[ "$candidate" == "$branch" ]] && return 0
-            done
-            return 1
-          }
+          mapfile -t branches < <(gh api --paginate "repos/$REPO/branches?per_page=100" --jq '.[].name')
+          echo "Remote branch count: ${#branches[@]}"
 
-          resolve_ref_sha() {
-            local branch="$1"
-            gh api "repos/$REPO/branches/$branch" --jq '.commit.sha'
-          }
-
-          mapfile -t branches < <(
-            gh api --paginate "repos/$REPO/branches?per_page=100" --jq '.[].name'
-          )
-
-          mapfile -t open_pr_branches < <(
-            gh pr list --repo "$REPO" --state open --json headRefName --jq '.[].headRefName'
-          )
-
-          is_open_pr_branch() {
-            local candidate="$1"
-            for open_branch in "${open_pr_branches[@]}"; do
-              [[ "$candidate" == "$open_branch" ]] && return 0
-            done
-            return 1
-          }
-
-          noncanonical=()
+          unexpected=()
           for branch in "${branches[@]}"; do
-            if is_protected "$branch"; then
-              continue
-            fi
-            if is_open_pr_branch "$branch"; then
-              echo "::error::Open PR branch blocks collective retirement: $branch"
-              exit 1
-            fi
-            noncanonical+=("$branch")
-          done
-
-          if [[ "${#branches[@]}" -ne 64 ]]; then
-            echo "::error::Expected 24 branches before collective retirement; found ${#branches[@]}."
-            exit 1
-          fi
-
-          if [[ "${#noncanonical[@]}" -ne 55 ]]; then
-            echo "::error::Expected 15 non-canonical branches; found ${#noncanonical[@]}."
-            exit 1
-          fi
-
-          echo "Collective retirement set:"
-          printf '  %s
-' "${noncanonical[@]}"
-
-          for branch in "${noncanonical[@]}"; do
-            sha=$(resolve_ref_sha "$branch")
-            safe_branch=$(printf '%s' "$branch" | sed 's/[^A-Za-z0-9._-]/-/g')
-            tag="archive/branches/$safe_branch--${sha:0:12}"
-
-            if gh api "repos/$REPO/git/ref/tags/$tag" >/dev/null 2>&1; then
-              existing=$(gh api "repos/$REPO/git/ref/tags/$tag" --jq '.object.sha')
-              if [[ "$existing" != "$sha" ]]; then
-                echo "::error::Archive tag collision for $branch: $tag"
-                exit 1
-              fi
+            if printf '%s\n' "${protected[@]}" | grep -Fxq "$branch"; then
+              echo "KEEP canonical: $branch"
             else
-              gh api --method POST "repos/$REPO/git/refs"                 -f "ref=refs/tags/$tag"                 -f "sha=$sha" >/dev/null
-            fi
-
-            verified=$(gh api "repos/$REPO/git/ref/tags/$tag" --jq '.object.sha')
-            if [[ "$verified" != "$sha" ]]; then
-              echo "::error::Archive verification failed for $branch"
-              exit 1
+              unexpected+=("$branch")
+              echo "NON-CANONICAL: $branch"
             fi
           done
 
-          echo "All 15 branches archived. Beginning collective deletion."
-
-          for branch in "${noncanonical[@]}"; do
-            gh api --method DELETE "repos/$REPO/git/refs/heads/$branch" >/dev/null
-          done
-
-          mapfile -t final_branches < <(
-            gh api --paginate "repos/$REPO/branches?per_page=100" --jq '.[].name'
-          )
-
-          echo "Final branch count: ${#final_branches[@]}"
-
-          if [[ "${#final_branches[@]}" -ne 9 ]]; then
-            echo "::error::Expected exactly 9 branches after retirement; found ${#final_branches[@]}."
-            printf '  %s
-' "${final_branches[@]}"
+          if [[ "${#branches[@]}" -ne 9 ]]; then
+            echo "::error::Repository hygiene violation: expected exactly 9 active branches, found ${#branches[@]}."
             exit 1
           fi
 
-          for branch in "${protected[@]}"; do
-            if ! printf '%s
-' "${final_branches[@]}" | grep -Fxq "$branch"; then
-              echo "::error::Canonical branch missing after retirement: $branch"
-              exit 1
-            fi
-          done
+          if [[ "${#unexpected[@]}" -ne 0 ]]; then
+            echo "::error::Non-canonical branches remain."
+            exit 1
+          fi
 
-          echo "ZENITH collective branch retirement PASSED: exactly 9 canonical branches remain."
-          # Collective retirement completed; subsequent pushes are guarded by commit message.
+          echo "Branch hygiene PASS: exactly nine canonical branches remain."
