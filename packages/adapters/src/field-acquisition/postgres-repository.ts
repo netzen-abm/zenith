@@ -1,13 +1,23 @@
 import type { OperationEnvelope } from '../../../contracts/src/operation.ts';
 import type { FieldObservationRequest } from '../../../capabilities/src/field-acquisition-operation.ts';
 import type { FieldAcquisitionRepository } from '../../../capabilities/src/field-acquisition/repository.ts';
+import type { AdmissionResult } from '../../../operation-queue/src/execution-coordinator.ts';
 
 export type QueryExecutor = { query<T extends Record<string, unknown>>(sql: string, params: readonly unknown[]): Promise<T[]> };
 export type TransactionExecutor = { transaction<T>(work: (db: QueryExecutor) => Promise<T>): Promise<T> };
 
 export class PostgresFieldAcquisitionRepository implements FieldAcquisitionRepository {
   constructor(private readonly db: TransactionExecutor) {}
-  async saveRequest(operation: OperationEnvelope, observation: FieldObservationRequest, context: { organisationId: string; identityId: string; purpose: string }): Promise<void> {
+
+  async admit(operation: OperationEnvelope): Promise<AdmissionResult> {
+    throw new Error('field_admission_requires_request_context');
+  }
+
+  async admitRequest(
+    operation: OperationEnvelope,
+    observation: FieldObservationRequest,
+    context: { organisationId: string; identityId: string; purpose: string },
+  ): Promise<AdmissionResult> {
     const requestId = operation.payloadRef;
     await this.db.transaction(async db => {
       await db.query(
@@ -24,7 +34,9 @@ export class PostgresFieldAcquisitionRepository implements FieldAcquisitionRepos
       await db.query('select operations.transition($1,\'created\',\'authorized\')', [operation.operationId]);
       await db.query('select operations.transition($1,\'authorized\',\'queued\')', [operation.operationId]);
     });
+    return { admitted: true, decision: 'allow', operation: { ...operation, state: 'queued' } };
   }
+
   async consumeRequest(payloadRef: string) {
     const rows = await this.db.transaction(db => db.query(
       'select observation_id, decision from core_private.consume_field_observation_request($1::uuid)', [payloadRef],
