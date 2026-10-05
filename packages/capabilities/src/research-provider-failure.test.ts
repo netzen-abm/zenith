@@ -23,4 +23,4 @@ const operation = new ResearchOperation(store, {
   outcomeRecorder: { record: async (_op, outcome) => { calls.push('outcome:' + outcome.outcome); return { recorded: true, decision: 'recorded' }; } },
 });
 await operation.execute(query);
-assert.deepEqual(calls, ['authorize', 'authorize', 'reserve', 'provider', 'outcome:retry_wait']);
+assert.deepEqual(calls, ['authorize', 'reserve', 'provider', 'outcome:retry_wait']);
