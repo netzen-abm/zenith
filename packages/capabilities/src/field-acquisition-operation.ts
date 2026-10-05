@@ -13,7 +13,8 @@ import type { FieldAcquisitionRepository } from './field-acquisition/repository.
 export type FieldObservationRequest = Omit<FieldObservation, 'id'> & { idempotencyKey: string };
 export type FieldExecutionContext = {
   organisationId: string; identityId: string; purpose: string;
-  authorization: ExecutionAuthorization; reservation: ExecutionReservation; outcomeRecorder: ExecutionOutcomeRecorder;
+  authorization: ExecutionAuthorization; admission: ExecutionAdmission;
+  reservation: ExecutionReservation; outcomeRecorder: ExecutionOutcomeRecorder;
 };
 
 export class FieldAcquisitionOperation {
@@ -45,15 +46,11 @@ export class FieldAcquisitionOperation {
       createdAt: new Date().toISOString(), attemptCount: 0, payloadRef: requestId,
     };
 
-    const admission: ExecutionAdmission = {
-      admit: admittedOperation => this.repository.admitRequest(
-        admittedOperation,
-        observation,
-        this.context,
-      ),
-    };
-
-    const result = await this.coordinator.execute(operation, admission);
+    const result = await this.coordinator.execute(
+      operation,
+      this.context.admission,
+      db => this.repository.persistRequest(db, operation, observation, this.context),
+    );
     if (!result.executed) throw new Error('field_observation_not_executed:' + result.decision);
     return { ...operation, state: 'queued' };
   }
