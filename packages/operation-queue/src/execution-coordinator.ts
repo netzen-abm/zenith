@@ -8,8 +8,14 @@ export type ExecutionOutcome = {
   errorCode?: string; resultRef?: string; resultHash?: string; occurredAt?: string;
 };
 export type DurableOutcomeResult = { recorded: boolean; decision: string };
+export type ExecutionAdmissionQueryExecutor = {
+  query<T extends Record<string, unknown>>(sql: string, params: readonly unknown[]): Promise<T[]>;
+};
+export type ExecutionAdmissionPersistence = (db: ExecutionAdmissionQueryExecutor) => Promise<void>;
 export interface ExecutionAuthorization { authorize(operation: OperationEnvelope): Promise<boolean>; }
-export interface ExecutionAdmission { admit(operation: OperationEnvelope): Promise<AdmissionResult>; }
+export interface ExecutionAdmission {
+  admit(operation: OperationEnvelope, persist?: ExecutionAdmissionPersistence): Promise<AdmissionResult>;
+}
 export interface ExecutionReservation { reserve(operationId: string): Promise<ReservationResult>; }
 export interface ExecutionOutcomeRecorder {
   record(operation: OperationEnvelope, outcome: ExecutionOutcome): Promise<DurableOutcomeResult>;
