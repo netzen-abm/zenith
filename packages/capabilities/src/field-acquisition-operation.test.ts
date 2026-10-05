@@ -1,21 +1,29 @@
+import { strict as assert } from 'node:assert';
 import { FieldAcquisitionOperation } from './field-acquisition-operation.ts';
 
 const calls: string[] = [];
 const repository = {
-  saveRequest: async () => { calls.push('save'); },
+  persistRequest: async () => { calls.push('persist'); },
   consumeRequest: async () => { calls.push('consume'); return { observationId: 'observation-1', decision: 'created' }; },
 };
 const context = {
   organisationId: 'org-1', identityId: 'identity-1', purpose: 'field capture',
-  authorization: { authorize: async () => true },
-  reservation: { reserve: async () => ({ allowed: true, decision: 'allow', attemptCount: 1 }) },
-  outcomeRecorder: { record: async () => ({ recorded: true, decision: 'allow' }) },
+  authorization: { authorize: async () => { calls.push('authorize'); return true; } },
+  admission: {
+    admit: async (operation: any, persist: any) => {
+      assert.equal(calls.at(-1), 'authorize');
+      calls.push('admit');
+      await persist({ query: async () => [] });
+      return { ...operation, state: 'queued' };
+    },
+  },
+  reservation: { reserve: async () => { calls.push('reserve'); return { allowed: true, decision: 'allow', attemptCount: 1 }; } },
+  outcomeRecorder: { record: async () => { calls.push('outcome'); return { recorded: true, decision: 'allow' }; } },
 };
 const operation = await new FieldAcquisitionOperation(repository, context).execute({
   organisationId: 'org-1', evidenceId: 'evidence-1', observerIdentityId: 'identity-1', idempotencyKey: 'capture-1',
   observationType: 'ceramic_fragment', value: { count: 3 },
 });
-if (operation.state !== 'queued') throw new Error('field operation must be queued');
-if (!calls.includes('save')) throw new Error('field repository save boundary not reached');
-if (!calls.includes('consume')) throw new Error('field handler boundary not reached');
+assert.equal(operation.state, 'queued');
+assert.deepEqual(calls, ['authorize', 'admit', 'persist', 'reserve', 'consume', 'outcome']);
 console.log('field-acquisition-operation: PASS');

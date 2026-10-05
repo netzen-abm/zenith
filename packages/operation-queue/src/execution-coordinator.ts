@@ -12,8 +12,14 @@ export interface ExecutionReservation { reserve(operationId: string): Promise<Re
 export interface ExecutionOutcomeRecorder {
   record(operation: OperationEnvelope, outcome: ExecutionOutcome): Promise<DurableOutcomeResult>;
 }
-export type ExecutionHandler = (operation: OperationEnvelope) => Promise<ExecutionOutcome>;
+export interface ExecutionAdmission {
+  admit(
+    operation: OperationEnvelope,
+    persist: (db: { query<T extends Record<string, unknown>>(sql: string, params: readonly unknown[]): Promise<T[]> }) => Promise<void>,
+  ): Promise<OperationEnvelope>;
+}
 export type ExecutionPreparation = (operation: OperationEnvelope) => Promise<OperationEnvelope | void>;
+export type ExecutionHandler = (operation: OperationEnvelope) => Promise<ExecutionOutcome>;
 export type ExecutionResult = { executed: boolean; decision: ExecutionDecision };
 
 export class ExecutionCoordinator {
@@ -34,24 +40,30 @@ export class ExecutionCoordinator {
     this.outcomeRecorder = outcomeRecorder;
   }
 
-  async execute(operation: OperationEnvelope, prepare?: ExecutionPreparation): Promise<ExecutionResult> {
+  async execute(
+    operation: OperationEnvelope,
+    preparationOrAdmission?: ExecutionPreparation | ExecutionAdmission,
+    persist?: Parameters<ExecutionAdmission['admit']>[1],
+  ): Promise<ExecutionResult> {
     if (!await this.authorization.authorize(operation)) {
       return { executed: false, decision: 'deny_authorization' };
     }
-    let preparedOperation = operation;
-    try {
-      const prepared = prepare ? await prepare(operation) : undefined;
-      preparedOperation = prepared ?? operation;
-    } catch {
-      return { executed: false, decision: 'deny_reservation' };
+
+    let admittedOperation = operation;
+    if (typeof preparationOrAdmission === 'function') {
+      admittedOperation = (await preparationOrAdmission(operation)) ?? operation;
+    } else if (preparationOrAdmission) {
+      if (!persist) throw new Error('execution_admission_persistence_required');
+      admittedOperation = await preparationOrAdmission.admit(operation, persist);
     }
-    const reserved = await this.reservation.reserve(preparedOperation.operationId);
+
+    const reserved = await this.reservation.reserve(admittedOperation.operationId);
     if (!reserved.allowed) {
       return { executed: false, decision: 'deny_reservation' };
     }
     const executionOperation = reserved.attemptCount === undefined
-      ? preparedOperation
-      : { ...preparedOperation, attemptCount: reserved.attemptCount };
+      ? admittedOperation
+      : { ...admittedOperation, attemptCount: reserved.attemptCount };
     const outcome = await this.handler(executionOperation);
     const durable = await this.outcomeRecorder.record(executionOperation, outcome);
     if (!durable.recorded) {
