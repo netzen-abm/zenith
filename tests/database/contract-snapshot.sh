@@ -38,10 +38,25 @@ select format('%s.%s:%s:%s:notnull=%s',
 from pg_attribute a
 join pg_class c on c.oid=a.attrelid
 join pg_namespace n on n.oid=c.relnamespace
-where n.nspname in ('core','audit')
+where n.nspname in ('core','audit','operations','core_private')
   and c.relkind in ('r','v','m')
   and a.attnum > 0
   and not a.attisdropped
+order by 1"
+
+
+run_snapshot types "
+select format('%s.%s:%s:%s',
+  n.nspname, t.typname, t.typtype,
+  case when t.typtype='e'
+    then (select string_agg(e.enumlabel, ',' order by e.enumsortorder) from pg_enum e where e.enumtypid=t.oid)
+    else coalesce(pg_get_constraintdef(c.oid),'')
+  end)
+from pg_type t
+join pg_namespace n on n.oid=t.typnamespace
+left join pg_constraint c on c.contypid=t.oid
+where n.nspname in ('core','audit','operations','core_private')
+  and t.typtype in ('e','d')
 order by 1"
 
 run_snapshot functions "
@@ -52,14 +67,14 @@ select format('%s.%s(%s):definer=%s:config=%s',
   coalesce(p.proconfig::text,''))
 from pg_proc p
 join pg_namespace n on n.oid=p.pronamespace
-where n.nspname in ('core','audit')
+where n.nspname in ('core','audit','operations','core_private')
 order by 1"
 
 run_snapshot function-definitions "
 select pg_get_functiondef(p.oid)
 from pg_proc p
 join pg_namespace n on n.oid=p.pronamespace
-where n.nspname in ('core','audit')
+where n.nspname in ('core','audit','operations','core_private')
 order by n.nspname,p.proname,pg_get_function_identity_arguments(p.oid)"
 
 run_snapshot policies "
@@ -67,14 +82,14 @@ select format('%s.%s:%s:%s:qual=%s:check=%s',
   schemaname, tablename, policyname, cmd,
   coalesce(qual,''), coalesce(with_check,''))
 from pg_policies
-where schemaname in ('core','audit')
+where schemaname in ('core','audit','operations','core_private')
 order by 1"
 
 run_snapshot grants "
 select format('%s.%s:%s:%s:%s',
   table_schema, table_name, grantee, privilege_type, is_grantable)
 from information_schema.role_table_grants
-where table_schema in ('core','audit')
+where table_schema in ('core','audit','operations','core_private')
 order by 1"
 
 run_snapshot constraints "
@@ -83,23 +98,23 @@ select format('%s.%s:%s:%s',
 from pg_constraint con
 join pg_class c on c.oid=con.conrelid
 join pg_namespace n on n.oid=c.relnamespace
-where n.nspname in ('core','audit')
+where n.nspname in ('core','audit','operations','core_private')
 order by 1"
 
 run_snapshot indexes "
 select format('%s.%s:%s:%s',
   schemaname, tablename, indexname, indexdef)
 from pg_indexes
-where schemaname in ('core','audit')
+where schemaname in ('core','audit','operations','core_private')
 order by 1"
 
 run_snapshot triggers "
-select format('%s.%s:%s:%s',
-  n.nspname, c.relname, t.tgname, pg_get_triggerdef(t.oid))
+select format('%s.%s:%s:enabled=%s:%s',
+  n.nspname, c.relname, t.tgname, t.tgenabled, pg_get_triggerdef(t.oid))
 from pg_trigger t
 join pg_class c on c.oid=t.tgrelid
 join pg_namespace n on n.oid=c.relnamespace
-where n.nspname in ('core','audit')
+where n.nspname in ('core','audit','operations','core_private')
   and not t.tgisinternal
 order by 1"
 
@@ -107,7 +122,7 @@ run_snapshot views "
 select format('%s.%s:%s',
   schemaname, viewname, definition)
 from pg_views
-where schemaname in ('core','audit')
+where schemaname in ('core','audit','operations','core_private')
 order by 1"
 
 printf 'Contract snapshot written to %s\n' "$OUTPUT_DIR"
