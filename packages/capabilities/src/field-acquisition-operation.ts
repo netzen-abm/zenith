@@ -18,12 +18,16 @@ export type FieldExecutionContext = {
 };
 
 export class FieldAcquisitionOperation {
+  private readonly repository: FieldAcquisitionRepository;
+  private readonly context: FieldExecutionContext;
   private readonly coordinator: ExecutionCoordinator;
 
   constructor(
-    private readonly repository: FieldAcquisitionRepository,
-    private readonly context: FieldExecutionContext,
+    repository: FieldAcquisitionRepository,
+    context: FieldExecutionContext,
   ) {
+    this.repository = repository;
+    this.context = context;
     this.coordinator = new ExecutionCoordinator(
       context.authorization,
       context.reservation,
