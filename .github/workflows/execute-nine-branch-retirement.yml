@@ -61,7 +61,7 @@ jobs:
           }
 
           if [[ "${#branches[@]}" -ne 24 ]]; then
-            echo "::error::Expected 24 branches before retirement; found ${#branches[@]}."
+            echo "::error::Expected 25 branches before retirement; found ${#branches[@]}."
             exit 1
           fi
 
@@ -78,7 +78,7 @@ jobs:
           done
 
           if [[ "${#noncanonical[@]}" -ne 15 ]]; then
-            echo "::error::Expected 15 non-canonical branches; found ${#noncanonical[@]}."
+            echo "::error::Expected 16 non-canonical branches; found ${#noncanonical[@]}."
             exit 1
           fi
 
