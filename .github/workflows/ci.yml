@@ -87,6 +87,13 @@ jobs:
           chmod +x tests/architecture/capability-boundary.sh
           tests/architecture/capability-boundary.sh
 
+      - name: Enforce shared capability conformance
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x tests/architecture/capability-conformance.sh
+          tests/architecture/capability-conformance.sh
+
   sql-static-security:
     name: SQL static security checks
     runs-on: ubuntu-latest
