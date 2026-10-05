@@ -25,86 +25,41 @@ A merged commit remains permanently recoverable through Git history, tags, pull 
 
 ## High-confidence retirement candidates
 
-The following branches are backed by merged PRs or are duplicate branch generations and should be deleted when the GitHub remote-delete capability is available:
+These live remote branches are confirmed **0 commits ahead of `main`** and are therefore safe retirement candidates without a merge-for-retirement maneuver:
 
-- `feat/vertical-evidence-annotation`
-- `feat/execution-kernel-conformance`
-- `feat/execution-kernel-convergence`
-- `feat/durable-execution-outcome-audit`
-- `refactor/canonical-execution-lifecycle`
-- `feat/postgres-coordinator-e2e-converged`
-- `feat/execution-coordinator-handler-boundary`
-- `feat/persistent-execution-reservation`
 - `feat/operation-queue-runtime-mainline`
-- `feat/operations-persistence-postgres`
-- `docs/operation-persistence-supabase-boundary`
-- `feat/atomic-operation-store-contract`
-- `feat/execution-coordinator-contract`
-- `feat/execution-coordinator-runtime`
-- `feat/operation-queue-contract`
-- `feat/operation-queue-runtime`
-- `feat/operation-idempotency-retry-expiry`
-- `feat/execution-lease-reconciliation`
-- `feat/explicit-organisation-context`
-- `audit/core-convergence-and-tenant-context`
-- `db/knowledge-graph-reconciliation`
-- `db/research-reconciliation`
-- `db/space-time-reconciliation`
-- `feat/core-evidence-provenance-reconciliation`
-- `feat/core-foundation-reconciliation`
-- `docs/core-reconciliation-matrix`
-- `test/fresh-db-reconciliation-harness`
-- `chore/database-live-contract-inventory`
-- `revert/direct-migration-parity-marker`
-- `chore/enforce-source-file-size`
-- `docs/database-source-of-truth-audit`
-- `feat/core-policy-boundary-clean`
-- `docs/auth-integration-test-contract`
-- `chore/ci-security-baseline`
-- `ci/supply-chain-security-hardening`
-- `chore/configure-dependabot-actions`
-- `chore/workflow-and-architecture-audit`
+- `feat/persistent-execution-reservation`
+- `feat/postgres-coordinator-e2e-converged`
+- `fix/operation-store-mutation-boundary`
+- `refactor/canonical-execution-lifecycle`
+- `test/operations-concurrency-gate`
 
-## Duplicate-generation retirement candidates
-
-These branch names currently point at the same commit and do not each represent independent development:
-
-- `feat/core-policy-boundary-final`
-- `feat/core-policy-boundary-v2`
-- `feat/core-policy-boundary-v3`
-- `feat/core-policy-boundary-v4`
-
-These also currently point at the same commit:
-
-- `docs/language-policy`
-- `docs/language-policy-2`
-- `docs/language-policy-3`
+They are behind `main` and add no unique commits relative to the current mainline. Delete them directly when remote branch-delete authority is available.
 
 ## Requires content review before retirement
 
-These branches are not to be merged blindly. Their remaining commits must be compared with `main` and either transferred through a reviewed PR or retired:
+These live remote branches contain commits not present in `main` by SHA comparison. Their unique commits must be evaluated against the current tree before retirement; do not merge them merely to eliminate the branch:
 
-- `chore/harden-execution-kernel-boundary`
-- `chore/database-migration-parity-inventory`
-- `feat/core-authorization-adapter-e2e`
-- `feat/core-authorization-adapter-e2e-v2`
-- `feat/core-policy-boundary`
-- `feat/durable-execution-outcome-audit`
-- `feat/execution-boundary-reservation`
-- `feat/execution-kernel-convergence`
-- `feat/execution-lease-reconciliation`
-- `feat/language-policy`
-- `feat/mandatory-durable-outcome-boundary`
-- `feat/operation-queue-executable-core`
+- `feat/operations-persistence-postgres`
 - `feat/postgres-execution-reservation-adapter`
-- `docs/language-independent-architecture`
-- `docs/programming-language-architecture`
+- `feat/research-intelligence-capability`
+- `feat/research-provider-contract`
+- `feat/vertical-evidence-annotation`
 - `fix/authorization-context-for-rls`
-- `fix/operation-store-mutation-boundary`
 - `test/auth-integration-contract`
-- `test/operations-concurrency-gate`
+- `test/fresh-db-reconciliation-harness`
+- `revert/direct-migration-parity-marker`
 
-**Important:** this list is a workflow register, not permission to delete without the corresponding remote-delete operation and final content verification.
+The current canonical workstream branches are intentionally retained:
+
+- `feat/ai-agent-infrastructure`
+- `feat/api-sdk-contracts`
+- `feat/field-acquisition`
+- `feat/knowledge-graph-next`
+- `feat/multisurface-adapters`
+- `feat/research-intelligence-next`
+- `feat/security-release-engineering`
+- `feat/space-time-next`
 
 ## Target active slots
 
@@ -130,9 +85,9 @@ All active capabilities must consume the shared chain:
 
 A domain capability may add domain behavior, but it may not create a competing authorization, tenant-isolation, lifecycle, reservation, idempotency, audit, or protected-mutation mechanism.
 
-## Current verified state — 2026-09-23
+## Current verified state — 2026-10-05
 
-The live GitHub remote was re-read and contains **24 branches**. `main` is authoritative. The nine intended active slots remain an architectural target, but the remote count is not yet compliant because this connected GitHub interface exposes no remote-branch deletion operation.
+The live GitHub remote was re-read on 2026-10-05 and contains **24 branches**. `main` is authoritative. The nine intended active slots remain an architectural target, but the remote count is not yet compliant because this connected GitHub interface exposes no remote-branch deletion operation.
 
 The canonical active workstream set remains:
 
@@ -146,9 +101,8 @@ The canonical active workstream set remains:
 - `feat/security-release-engineering`
 - `feat/space-time-next`
 
-Current branch comparisons show multiple survivors are stale or already integrated. In particular, `feat/operation-queue-runtime-mainline`, `feat/persistent-execution-reservation`, `feat/postgres-coordinator-e2e-converged`, `fix/operation-store-mutation-boundary`, `refactor/canonical-execution-lifecycle`, and `test/operations-concurrency-gate` are behind `main` with no unique commits ahead. They should be retired rather than merged.
+The six high-confidence candidates above are confirmed 0-ahead of `main`; merging them would create no architectural value and is prohibited by this register. The remaining review branches have unique commits relative to `main`, so retirement requires content-level transfer analysis. Unique commits are not automatically required: `main` remains the source of truth.
 
-Other branches contain unique historical work but are materially behind `main`; they require content-level transfer analysis, not blind merging. Examples include operations persistence, PostgreSQL reservation adapter, research-intelligence capability, research-provider contract, vertical evidence annotation, knowledge graph, space-time, authorization-context, auth integration contract, fresh-DB harness and the migration-parity revert. The fact that a branch contains unique commits does not establish that those commits remain needed; the current `main` tree must be the source of truth for deciding transfer versus retirement.
 
 ### Enforcement decision
 
