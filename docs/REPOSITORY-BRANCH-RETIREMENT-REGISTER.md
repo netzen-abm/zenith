@@ -123,3 +123,6 @@ The current remote inventory has been independently verified at 24 branches with
 The minimal retirement executor is installed at `.github/workflows/execute-nine-branch-retirement.yml`; it archives branch heads before deletion and verifies the final nine-branch invariant.
 
 Retirement executor guard verified in source; the next designated push will execute the 24→9 archival retirement.
+
+
+Operational trigger branch: this branch exists only to deliver the verified retirement execution event and is intended for immediate archival and deletion by the executor.
