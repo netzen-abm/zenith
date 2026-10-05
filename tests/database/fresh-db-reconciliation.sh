@@ -70,6 +70,12 @@ chmod +x "$ROOT_DIR/tests/database/execution-reservation-concurrency.sh"
 "$ROOT_DIR/tests/database/execution-reservation-concurrency.sh"
 
 snapshot_dir="$ROOT_DIR/.tmp/fresh-db-reconciliation"
+contract_snapshot_dir="$snapshot_dir/contract"
+rm -rf "$contract_snapshot_dir"
+mkdir -p "$contract_snapshot_dir"
+DATABASE_URL="$DATABASE_URL" bash "$ROOT_DIR/tests/database/contract-snapshot.sh" "$contract_snapshot_dir"
+
+snapshot_dir="$ROOT_DIR/.tmp/fresh-db-reconciliation"
 rm -rf "$snapshot_dir"
 mkdir -p "$snapshot_dir"
 run_snapshot() {
