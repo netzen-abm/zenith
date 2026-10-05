@@ -26,7 +26,7 @@ select format('%s.%s:%s:rls=%s:forced=%s',
   c.relrowsecurity::text, c.relforcerowsecurity::text)
 from pg_class c
 join pg_namespace n on n.oid=c.relnamespace
-where n.nspname in ('core','audit')
+where n.nspname in ('core','audit','operations','core_private')
   and c.relkind in ('r','v','m','f','p')
 order by 1"
 
