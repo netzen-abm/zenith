@@ -18,6 +18,7 @@ export interface ExecutionAdmission {
     persist: (db: { query<T extends Record<string, unknown>>(sql: string, params: readonly unknown[]): Promise<T[]> }) => Promise<void>,
   ): Promise<OperationEnvelope>;
 }
+export type ExecutionPreparation = (operation: OperationEnvelope) => Promise<OperationEnvelope | void>;
 export type ExecutionHandler = (operation: OperationEnvelope) => Promise<ExecutionOutcome>;
 export type ExecutionResult = { executed: boolean; decision: ExecutionDecision };
 
@@ -41,18 +42,21 @@ export class ExecutionCoordinator {
 
   async execute(
     operation: OperationEnvelope,
-    admission?: ExecutionAdmission,
+    preparationOrAdmission?: ExecutionPreparation | ExecutionAdmission,
     persist?: Parameters<ExecutionAdmission['admit']>[1],
   ): Promise<ExecutionResult> {
     if (!await this.authorization.authorize(operation)) {
       return { executed: false, decision: 'deny_authorization' };
     }
-    if (admission && !persist) {
-      throw new Error('execution_admission_persistence_required');
+
+    let admittedOperation = operation;
+    if (typeof preparationOrAdmission === 'function') {
+      admittedOperation = (await preparationOrAdmission(operation)) ?? operation;
+    } else if (preparationOrAdmission) {
+      if (!persist) throw new Error('execution_admission_persistence_required');
+      admittedOperation = await preparationOrAdmission.admit(operation, persist);
     }
-    const admittedOperation = admission
-      ? await admission.admit(operation, persist)
-      : operation;
+
     const reserved = await this.reservation.reserve(admittedOperation.operationId);
     if (!reserved.allowed) {
       return { executed: false, decision: 'deny_reservation' };
