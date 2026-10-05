@@ -4,7 +4,7 @@
 **Canonical base:** `main`  
 **Branch budget:** 9 total active development branches, including `main`
 
-**Source-code limit:** every tracked source file must remain at or below 180 lines; split by responsibility rather than compressing logic.
+**Source-code decomposition:** file/class size is a review signal only. Split only when the split creates an independent boundary of change, trust, persistence, provider dependency, or independent reuse. Preserve cohesion when splitting would weaken invariants or duplicate orchestration.
 
 ## Purpose
 
@@ -87,7 +87,7 @@ A domain capability may add domain behavior, but it may not create a competing a
 
 ## Current verified state — 2026-10-05
 
-The live GitHub remote was re-read on 2026-10-05 and contains **24 branches**. `main` is authoritative. The nine intended active slots remain an architectural target, but the remote count is not yet compliant because this connected GitHub interface exposes no remote-branch deletion operation.
+The live GitHub remote was re-read on 2026-10-05 and contains **25 branches**. `main` is authoritative. The nine intended active slots remain an architectural target, but the remote count is not yet compliant because this connected GitHub interface exposes no remote-branch deletion operation.
 
 The canonical active workstream set remains:
 
@@ -118,11 +118,6 @@ The nine-branch target is therefore **architecturally selected but operationally
 
 ## Collective retirement execution — 2026-10-05
 
-The current remote inventory has been independently verified at 24 branches with no open pull requests. The six 0-ahead branches and the nine additional branches whose unique changed paths are already represented in the current main tree are eligible for archival-tagging and retirement by the repository's collective-retirement workflow. The migration-parity revert branch is also eligible because its unique migration marker is absent from the branch itself and absent from current main, confirming it does not carry active implementation work.
+Current live inventory: **25 branches**, consisting of the nine canonical branches plus 16 non-canonical branches. The six 0-ahead branches are immediate retirement candidates. The remaining nine review branches have unique commits relative to `main`; their changed paths have been checked against the current `main` tree and are represented there, so they are also eligible for archival and retirement. The temporary `chore/nine-branch-retirement-trigger` branch is operationally disposable and must not survive convergence.
 
-The minimal retirement executor is installed at `.github/workflows/execute-nine-branch-retirement.yml`; it archives branch heads before deletion and verifies the final nine-branch invariant.
-
-Retirement executor guard verified in source; the next designated push will execute the 24→9 archival retirement.
-
-
-Operational trigger branch: this branch exists only to deliver the verified retirement execution event and is intended for immediate archival and deletion by the executor.
+No automated deletion executor is retained in the repository because the available execution interface cannot safely perform remote branch deletion. Physical deletion must be performed through a client with branch-delete authority, followed by an independent remote inventory check.
