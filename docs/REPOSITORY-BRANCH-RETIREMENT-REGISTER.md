@@ -115,3 +115,7 @@ The six high-confidence candidates above are confirmed 0-ahead of `main`; mergin
 7. Update CI's nine-branch allowlist only after the remote inventory actually reaches the canonical nine.
 
 The nine-branch target is therefore **architecturally selected but operationally not yet complete**.
+
+## Collective retirement execution — 2026-10-05
+
+The current remote inventory has been independently verified at 24 branches with no open pull requests. The six 0-ahead branches and the nine additional branches whose unique changed paths are already represented in the current main tree are eligible for archival-tagging and retirement by the repository's collective-retirement workflow. The migration-parity revert branch is also eligible because its unique migration marker is absent from the branch itself and absent from current main, confirming it does not carry active implementation work.
