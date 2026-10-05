@@ -9,10 +9,6 @@ export type TransactionExecutor = { transaction<T>(work: (db: QueryExecutor) => 
 export class PostgresFieldAcquisitionRepository implements FieldAcquisitionRepository {
   constructor(private readonly db: TransactionExecutor) {}
 
-  async admit(operation: OperationEnvelope): Promise<AdmissionResult> {
-    throw new Error('field_admission_requires_request_context');
-  }
-
   async admitRequest(
     operation: OperationEnvelope,
     observation: FieldObservationRequest,
