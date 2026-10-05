@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto';
 import type { OperationEnvelope } from '../../contracts/src/operation.ts';
 import {
   ExecutionCoordinator,
-  type ExecutionAuthorization,
   type ExecutionAdmission,
+  type ExecutionAuthorization,
   type ExecutionOutcomeRecorder,
   type ExecutionReservation,
 } from '../../operation-queue/src/execution-coordinator.ts';
@@ -18,24 +18,18 @@ export type FieldExecutionContext = {
 
 export class FieldAcquisitionOperation {
   private readonly coordinator: ExecutionCoordinator;
-  constructor(private readonly repository: FieldAcquisitionRepository, private readonly context: FieldExecutionContext) {
-    const admission: ExecutionAdmission = {
-      admit: operation => this.repository.admitRequest(
-        operation,
-        this.pendingObservation,
-        this.context,
-      ),
-    };
+
+  constructor(
+    private readonly repository: FieldAcquisitionRepository,
+    private readonly context: FieldExecutionContext,
+  ) {
     this.coordinator = new ExecutionCoordinator(
       context.authorization,
       context.reservation,
       operation => this.handle(operation),
       context.outcomeRecorder,
-      admission,
     );
   }
-
-  private pendingObservation!: FieldObservationRequest;
 
   async execute(request: FieldObservationRequest): Promise<OperationEnvelope> {
     const requestId = randomUUID();
@@ -43,14 +37,23 @@ export class FieldAcquisitionOperation {
     const observation = { ...request, id: requestId };
     validateFieldObservation(observation);
     if (!request.idempotencyKey.trim()) throw new Error('field_observation_idempotency_key_required');
+
     const operation: OperationEnvelope = {
       operationId, idempotencyKey: request.idempotencyKey, action: 'field.observation_create',
       resourceId: request.evidenceId, organisationId: this.context.organisationId,
       identityId: this.context.identityId, purpose: this.context.purpose, state: 'created',
       createdAt: new Date().toISOString(), attemptCount: 0, payloadRef: requestId,
     };
-    this.pendingObservation = observation;
-    const result = await this.coordinator.execute(operation);
+
+    const admission: ExecutionAdmission = {
+      admit: admittedOperation => this.repository.admitRequest(
+        admittedOperation,
+        observation,
+        this.context,
+      ),
+    };
+
+    const result = await this.coordinator.execute(operation, admission);
     if (!result.executed) throw new Error('field_observation_not_executed:' + result.decision);
     return { ...operation, state: 'queued' };
   }
