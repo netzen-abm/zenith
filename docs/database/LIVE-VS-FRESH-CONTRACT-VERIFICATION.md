@@ -30,13 +30,13 @@ The snapshot compares application-owned:
 - triggers
 - views and definitions
 
-Server-version differences are reported but are not treated as application-schema drift. Extension-version differences are reported separately because platform-managed extension versions may legitimately differ.
+Server-version differences are reported but are not treated as application-schema drift. Required extension presence is contract-critical and fails comparison when the extension set differs; extension-version differences are reported separately because platform-managed versions may legitimately differ.
 
 ## Procedure
 
 ### 1. Fresh database
 
-Run the existing repository reconciliation harness, then emit a contract snapshot from that database.
+Run the existing repository reconciliation harness. It now emits the canonical contract snapshot at `.tmp/fresh-db-reconciliation/contract/` before the disposable database is removed.
 
 ### 2. Live verification target
 
