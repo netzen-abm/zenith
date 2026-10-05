@@ -9,9 +9,7 @@ export type ExecutionOutcome = {
 };
 export type DurableOutcomeResult = { recorded: boolean; decision: string };
 export interface ExecutionAuthorization { authorize(operation: OperationEnvelope): Promise<boolean>; }
-export interface ExecutionAdmission {
-  admit(operation: OperationEnvelope): Promise<AdmissionResult>;
-}
+export interface ExecutionAdmission { admit(operation: OperationEnvelope): Promise<AdmissionResult>; }
 export interface ExecutionReservation { reserve(operationId: string): Promise<ReservationResult>; }
 export interface ExecutionOutcomeRecorder {
   record(operation: OperationEnvelope, outcome: ExecutionOutcome): Promise<DurableOutcomeResult>;
@@ -20,36 +18,23 @@ export type ExecutionHandler = (operation: OperationEnvelope) => Promise<Executi
 export type ExecutionResult = { executed: boolean; decision: ExecutionDecision };
 
 export class ExecutionCoordinator {
-  private readonly authorization: ExecutionAuthorization;
-  private readonly admission?: ExecutionAdmission;
-  private readonly reservation: ExecutionReservation;
-  private readonly handler: ExecutionHandler;
-  private readonly outcomeRecorder: ExecutionOutcomeRecorder;
-
   constructor(
-    authorization: ExecutionAuthorization,
-    reservation: ExecutionReservation,
-    handler: ExecutionHandler,
-    outcomeRecorder: ExecutionOutcomeRecorder,
-    admission?: ExecutionAdmission,
-  ) {
-    this.authorization = authorization;
-    this.reservation = reservation;
-    this.handler = handler;
-    this.outcomeRecorder = outcomeRecorder;
-    this.admission = admission;
-  }
+    private readonly authorization: ExecutionAuthorization,
+    private readonly reservation: ExecutionReservation,
+    private readonly handler: ExecutionHandler,
+    private readonly outcomeRecorder: ExecutionOutcomeRecorder,
+  ) {}
 
-  async execute(operation: OperationEnvelope): Promise<ExecutionResult> {
+  async execute(operation: OperationEnvelope, admission?: ExecutionAdmission): Promise<ExecutionResult> {
     if (!await this.authorization.authorize(operation)) {
       return { executed: false, decision: 'deny_authorization' };
     }
 
     let admittedOperation = operation;
-    if (this.admission) {
+    if (admission) {
       let admitted: AdmissionResult;
       try {
-        admitted = await this.admission.admit(operation);
+        admitted = await admission.admit(operation);
       } catch {
         return { executed: false, decision: 'deny_admission' };
       }
