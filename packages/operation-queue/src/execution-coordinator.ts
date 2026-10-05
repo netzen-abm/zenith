@@ -22,12 +22,22 @@ export type ExecutionHandler = (operation: OperationEnvelope) => Promise<Executi
 export type ExecutionResult = { executed: boolean; decision: ExecutionDecision };
 
 export class ExecutionCoordinator {
+  private readonly authorization: ExecutionAuthorization;
+  private readonly reservation: ExecutionReservation;
+  private readonly handler: ExecutionHandler;
+  private readonly outcomeRecorder: ExecutionOutcomeRecorder;
+
   constructor(
-    private readonly authorization: ExecutionAuthorization,
-    private readonly reservation: ExecutionReservation,
-    private readonly handler: ExecutionHandler,
-    private readonly outcomeRecorder: ExecutionOutcomeRecorder,
-  ) {}
+    authorization: ExecutionAuthorization,
+    reservation: ExecutionReservation,
+    handler: ExecutionHandler,
+    outcomeRecorder: ExecutionOutcomeRecorder,
+  ) {
+    this.authorization = authorization;
+    this.reservation = reservation;
+    this.handler = handler;
+    this.outcomeRecorder = outcomeRecorder;
+  }
 
   async execute(
     operation: OperationEnvelope,
@@ -37,8 +47,11 @@ export class ExecutionCoordinator {
     if (!await this.authorization.authorize(operation)) {
       return { executed: false, decision: 'deny_authorization' };
     }
+    if (admission && !persist) {
+      throw new Error('execution_admission_persistence_required');
+    }
     const admittedOperation = admission
-      ? await admission.admit(operation, persist!)
+      ? await admission.admit(operation, persist)
       : operation;
     const reserved = await this.reservation.reserve(admittedOperation.operationId);
     if (!reserved.allowed) {
