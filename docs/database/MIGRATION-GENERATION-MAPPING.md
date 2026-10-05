@@ -1,74 +1,45 @@
 # Live Migration Generation Mapping
 
-**Status:** In progress — mapping baseline  
-**Purpose:** Convert the verified deployed Core contract into an explicit repository reconciliation plan without destructive recreation or speculative production DDL.
+**Status:** In progress — repository reconciliation re-baselined 2026-10-05
 
-## 1. Mapping rule
+## Mapping rule
 
-The deployed Supabase Core contains 14 migration generations. Repository `main` now contains the initial kernel, capability boundary, foundation reconciliation, and evidence/provenance reconciliation; this branch adds the Knowledge Graph relationship/assertion unit. The repository is **not yet a complete historical migration ledger**.
+The deployed Supabase Core contains 14 historical migration generations. Repository `main` now contains bounded forward reconciliation units through `0021_field_observation_requests.sql`. Filename parity with the historical 14 generations is not the acceptance criterion; behavioral and security parity is.
 
-This document distinguishes historical generation, repository representation, reconciliation artifact, and verification artifact. The objective is behavioral parity, not filename parity.
+Historical generations must not be recreated merely to repair numbering.
 
-## 2. Generation map
+## Current generation map
 
-| Live generation | Architectural area | Repository representation | Reconciliation status |
-|---|---|---|---|
-| 1 `past_intelligence_core_security_kernel_v0_1` | Core/Audit security foundation | `0001_security_kernel.sql` | Reconciled forward; live divergence documented |
-| 2 `tighten_public_data_api_surface` | Public data exposure | `0003`/`0004` foundation reconciliation | Represented in current foundation contract |
-| 3 `restore_public_rls_read_path` | Public RLS read path | `0004` foundation security reconciliation | Represented; fresh-db gate green |
-| 4 `separate_anon_public_resource_policy` | Anonymous/public resource policy | `0004` foundation security reconciliation | Represented; fresh-db gate green |
-| 5 `harden_postgis_public_surface` | PostGIS/public surface | Platform-managed classification + foundation geometry | Residual separately tracked |
-| 6 `close_postgis_extension_public_privileges` | PostGIS extension privileges | Platform-managed classification | No speculative platform DDL |
-| 7 `evidence_provenance_audit_kernel_v0_1` | Evidence/provenance/audit | `0005_evidence_provenance_reconciliation.sql` | Implemented; fresh-db gate green |
-| 8 `evidence_provenance_runtime_gate_v0_1` | Runtime evidence/provenance gate | `tests/database/evidence-provenance-assertions.sql` + fresh-db integration | Schema/security gate implemented; behavioral Auth tests remain open |
-| 9 `knowledge_graph_relationship_kernel_v0_1` | Entity relationships/assertions | `0006_knowledge_graph_reconciliation.sql` + `tests/database/knowledge-graph-assertions.sql` | Implemented on current branch; fresh-db gate pending |
-| 10 `space_time_kernel_v0_1` | Spatial/temporal model | Not yet represented | Core/PostGIS reconciliation required |
-| 11 `research_workflow_kernel_v0_1` | Research workflow | Not yet represented | Core reconciliation required |
-| 12 `harden_authorization_helper_execution_context` | Authorization helper security | `0004` foundation security reconciliation | Represented; fresh-db gate green |
-| 13 `close_authorization_helper_direct_execute` | Authorization EXECUTE boundary | `0004` + `0002` | Represented; authenticated runtime verification remains open |
-| 14 `add_canonical_capability_policy_boundary` | Canonical capability authorization boundary | `0002_capability_policy_boundary.sql` | Represented; fresh-db security contract green |
+| Live generation | Repository representation | Status |
+|---|---|---|
+| 1 security kernel | `0001` | Represented; hardened by `0003`/`0004` |
+| 2 public data surface | `0003`/`0004` | Represented |
+| 3 public RLS read path | `0004` | Represented; fresh DB green |
+| 4 anonymous public policy | `0004` | Represented; fresh DB green |
+| 5 PostGIS public surface | `0004` + platform classification | Represented; residual tracked separately |
+| 6 PostGIS extension privileges | Platform-managed classification | No speculative application DDL |
+| 7 evidence/provenance kernel | `0005` | Represented; fresh DB green |
+| 8 evidence runtime gate | tests + `0005` | Structural gate green; Auth behavior open |
+| 9 knowledge graph kernel | `0006` + `0019` | Represented; fresh DB/security green |
+| 10 space/time kernel | `0007` + `0020` | Represented; exact live-contract comparison open |
+| 11 research workflow kernel | `0008` + `0018` | Represented; exact live-contract comparison open |
+| 12 authorization helper execution context | `0004` | Represented; Auth verification open |
+| 13 authorization EXECUTE boundary | `0002` + `0004` | Represented; Auth verification open |
+| 14 canonical capability boundary | `0002` | Represented; security gate green |
 
-## 3. Reconciliation units
+## Repository migration units
 
-Use bounded forward units rather than imitating missing historical filenames:
+`0001`–`0009`, `0011`–`0016`, and `0017`–`0021` are committed. `0010` is absent. No replacement `0010` should be invented merely to make the sequence contiguous.
 
-1. **Core foundation** — tables, columns, constraints, indexes, timestamps, required extensions.
-2. **Evidence/provenance** — sources, evidence, observations, measurements, claims, interpretations, hypotheses, provenance, and bounded runtime assertions.
-3. **Knowledge graph** — entity relationships/assertions, relationship visibility, endpoint authorization, provenance/evidence links, and public-safe relationship projection.
-4. **Space/time** — spatial representations/relations, time spans/relations, resource spatial/time relations, and public projections.
-5. **Research** — questions, projects, datasets, methods, runs, outputs, and associations.
-6. **Security** — RLS, grants, function security context, search paths, and triggers.
-7. **Public surface** — public views and anonymous/authenticated boundaries, including sensitive-coordinate generalization.
+The current set covers foundation, security, evidence/provenance, Knowledge Graph, Space/Time, Research, identity context, operation infrastructure, Evidence Annotation, and Field Acquisition.
 
-Each unit remains below the repository source-size limit or is split only where the split preserves atomicity and review clarity.
+## Closure sequence
 
-## 4. Security invariants
+1. Provision a fresh non-production database from repository migrations.
+2. Compare schema, constraints, indexes, functions, triggers, views, grants and RLS with the verified live contract.
+3. Run public/anonymous safety tests.
+4. Run authenticated positive/negative tests with real Auth identities.
+5. Run cross-tenant isolation and sensitive-coordinate exposure tests.
+6. Separately classify Supabase-managed platform residuals.
 
-Reconciliation preserves RLS on protected tables, anonymous access only through explicitly public-safe surfaces, resource-level authorization, cross-tenant isolation, self-only identity access, public projection `security_invoker=true`, sensitive-coordinate protection, fail-closed unknown capabilities, narrow SECURITY DEFINER functions with empty `search_path`, and no user-metadata-based authorization.
-
-## 5. Validation sequence
-
-Before production reconciliation:
-
-1. provision a fresh non-production database from repository migrations;
-2. record schema, constraints, indexes, functions, triggers, views, grants and RLS;
-3. compare against `LIVE-CORE-CONTRACT-INVENTORY.md`;
-4. run public/anonymous safety tests;
-5. run authenticated positive/negative tests with real Auth identities;
-6. run cross-tenant isolation tests;
-7. run sensitive-coordinate exposure tests;
-8. only after convergence, consider a bounded forward migration to live.
-
-## 6. Explicit non-goals
-
-- Do not reconstruct Supabase-managed schemas wholesale.
-- Do not copy platform default privileges without need.
-- Do not move PostGIS merely to silence an advisor.
-- Do not silently change live data.
-- Do not delete historical repository migrations.
-- Do not claim authenticated integration tests passed when no Auth test identities exist.
-- Do not treat green SQL/static CI as proof of complete database parity.
-
-## 7. Current conclusion
-
-Foundation and evidence/provenance reconciliation are merged. Knowledge Graph relationship/assertion reconciliation is now the active bounded unit. Production DDL remains deferred until fresh-database verification, public projection checks, and Auth-backed behavioral tests converge.
+**Migration parity remains OPEN.** Green CI is necessary evidence, not proof of complete live-database parity.
