@@ -1,0 +1,116 @@
+name: Execute Nine-Branch Retirement
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: nine-branch-retirement
+  cancel-in-progress: false
+
+jobs:
+  retire:
+    if: github.event.head_commit.message == 'chore: execute collective branch retirement'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Retire non-canonical branches with archive tags
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          protected=(
+            "main"
+            "feat/knowledge-graph-next"
+            "feat/space-time-next"
+            "feat/research-intelligence-next"
+            "feat/ai-agent-infrastructure"
+            "feat/multisurface-adapters"
+            "feat/api-sdk-contracts"
+            "feat/security-release-engineering"
+            "feat/field-acquisition"
+          )
+
+          is_protected() {
+            local candidate="$1"
+            for branch in "${protected[@]}"; do
+              [[ "$candidate" == "$branch" ]] && return 0
+            done
+            return 1
+          }
+
+          mapfile -t branches < <(gh api --paginate "repos/$REPO/branches?per_page=100" --jq '.[].name')
+          mapfile -t open_pr_branches < <(gh pr list --repo "$REPO" --state open --json headRefName --jq '.[].headRefName')
+
+          is_open_pr_branch() {
+            local candidate="$1"
+            for open_branch in "${open_pr_branches[@]}"; do
+              [[ "$candidate" == "$open_branch" ]] && return 0
+            done
+            return 1
+          }
+
+          if [[ "${#branches[@]}" -ne 24 ]]; then
+            echo "::error::Expected 24 branches before retirement; found ${#branches[@]}."
+            exit 1
+          fi
+
+          noncanonical=()
+          for branch in "${branches[@]}"; do
+            if is_protected "$branch"; then
+              continue
+            fi
+            if is_open_pr_branch "$branch"; then
+              echo "::error::Open PR branch blocks retirement: $branch"
+              exit 1
+            fi
+            noncanonical+=("$branch")
+          done
+
+          if [[ "${#noncanonical[@]}" -ne 15 ]]; then
+            echo "::error::Expected 15 non-canonical branches; found ${#noncanonical[@]}."
+            exit 1
+          fi
+
+          for branch in "${noncanonical[@]}"; do
+            sha=$(gh api "repos/$REPO/branches/$branch" --jq '.commit.sha')
+            safe=$(printf '%s' "$branch" | sed 's/[^A-Za-z0-9._-]/-/g')
+            tag="archive/branches/$safe--${sha:0:12}"
+
+            if gh api "repos/$REPO/git/ref/tags/$tag" >/dev/null 2>&1; then
+              existing=$(gh api "repos/$REPO/git/ref/tags/$tag" --jq '.object.sha')
+              [[ "$existing" == "$sha" ]] || { echo "::error::Archive tag collision: $tag"; exit 1; }
+            else
+              gh api --method POST "repos/$REPO/git/refs" -f "ref=refs/tags/$tag" -f "sha=$sha" >/dev/null
+            fi
+
+            verified=$(gh api "repos/$REPO/git/ref/tags/$tag" --jq '.object.sha')
+            [[ "$verified" == "$sha" ]] || { echo "::error::Archive verification failed: $branch"; exit 1; }
+          done
+
+          for branch in "${noncanonical[@]}"; do
+            gh api --method DELETE "repos/$REPO/git/refs/heads/$branch" >/dev/null
+          done
+
+          mapfile -t final_branches < <(gh api --paginate "repos/$REPO/branches?per_page=100" --jq '.[].name')
+
+          [[ "${#final_branches[@]}" -eq 9 ]] || {
+            echo "::error::Expected exactly 9 branches after retirement; found ${#final_branches[@]}."
+            printf '  %s\n' "${final_branches[@]}"
+            exit 1
+          }
+
+          for branch in "${protected[@]}"; do
+            printf '%s\n' "${final_branches[@]}" | grep -Fxq "$branch" || {
+              echo "::error::Canonical branch missing: $branch"
+              exit 1
+            }
+          done
+
+          echo "ZENITH branch retirement PASS: exactly 9 canonical branches remain."
