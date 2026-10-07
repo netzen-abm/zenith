@@ -1,6 +1,7 @@
 import { strict as assert } from 'node:assert';
 import { DeterministicResearchProvider } from './research-provider-fixture.ts';
-import { ResearchOperation, type ResearchQueryStore } from './research-operation.ts';
+import { ResearchOperation } from './research-operation.ts';
+import type { ResearchQueryStore } from './research/repository.ts';
 
 class MemoryQueryStore implements ResearchQueryStore {
   private readonly data = new Map<string, any>();
