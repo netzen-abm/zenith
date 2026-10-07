@@ -1,5 +1,5 @@
 import type { OperationEnvelope } from '../../../contracts/src/operation.ts';
-import type { SpaceTimeRequestRepository } from './repository.ts';
+import type { SpaceTimeRequestRepository } from '../../../capabilities/src/space-time/repository.ts';
 
 type Db = {
   query<T extends Record<string, unknown>>(sql: string, params: readonly unknown[]): Promise<T[]>;
