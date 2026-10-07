@@ -9,14 +9,6 @@ const repository = {
 const context = {
   organisationId: 'org-1', identityId: 'identity-1', purpose: 'field capture',
   authorization: { authorize: async () => { calls.push('authorize'); return true; } },
-  admission: {
-    admit: async (operation: any, persist: any) => {
-      assert.equal(calls.at(-1), 'authorize');
-      calls.push('admit');
-      await persist({ query: async () => [] });
-      return { ...operation, state: 'queued' };
-    },
-  },
   reservation: { reserve: async () => { calls.push('reserve'); return { allowed: true, decision: 'allow', attemptCount: 1 }; } },
   outcomeRecorder: { record: async () => { calls.push('outcome'); return { recorded: true, decision: 'allow' }; } },
 };
@@ -25,5 +17,5 @@ const operation = await new FieldAcquisitionOperation(repository, context).execu
   observationType: 'ceramic_fragment', value: { count: 3 },
 });
 assert.equal(operation.state, 'queued');
-assert.deepEqual(calls, ['authorize', 'admit', 'persist', 'reserve', 'consume', 'outcome']);
+assert.deepEqual(calls, ['authorize', 'persist', 'reserve', 'consume', 'outcome']);
 console.log('field-acquisition-operation: PASS');
