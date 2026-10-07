@@ -24,7 +24,7 @@ export class KnowledgeGraphCapability {
 
   constructor(
     private readonly repository: KnowledgeGraphRequestRepository,
-    private readonly authorization: ExecutionAuthorization,
+    authorization: ExecutionAuthorization,
     reservation: ExecutionReservation,
     outcomeRecorder: ExecutionOutcomeRecorder,
   ) {
@@ -59,13 +59,10 @@ export class KnowledgeGraphCapability {
       payloadRef: requestId,
     };
 
-    if (!await this.authorization.authorize(operation)) {
-      throw new Error('knowledge_graph_unauthorized');
-    }
-
-    await this.repository.saveRequest(relationship, context);
-
-    const result = await this.coordinator.execute(operation);
+    const result = await this.coordinator.execute(operation, async () => {
+      await this.repository.saveRequest(relationship, context);
+      return operation;
+    });
     if (!result.executed) {
       throw new Error(`knowledge_graph_not_executed:${result.decision}`);
     }
