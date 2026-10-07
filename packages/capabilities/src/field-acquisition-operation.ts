@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto';
 import type { OperationEnvelope } from '../../contracts/src/operation.ts';
 import {
   ExecutionCoordinator,
-  type ExecutionAdmission,
   type ExecutionAuthorization,
   type ExecutionOutcomeRecorder,
   type ExecutionReservation,
@@ -13,7 +12,7 @@ import type { FieldAcquisitionRepository } from './field-acquisition/repository.
 export type FieldObservationRequest = Omit<FieldObservation, 'id'> & { idempotencyKey: string };
 export type FieldExecutionContext = {
   organisationId: string; identityId: string; purpose: string;
-  authorization: ExecutionAuthorization; admission: ExecutionAdmission;
+  authorization: ExecutionAuthorization;
   reservation: ExecutionReservation; outcomeRecorder: ExecutionOutcomeRecorder;
 };
 
@@ -52,8 +51,10 @@ export class FieldAcquisitionOperation {
 
     const result = await this.coordinator.execute(
       operation,
-      this.context.admission,
-      db => this.repository.persistRequest(db, operation, observation, this.context),
+      async () => {
+        await this.repository.persistRequest(operation, observation, this.context);
+        return operation;
+      },
     );
     if (!result.executed) throw new Error('field_observation_not_executed:' + result.decision);
     return { ...operation, state: 'queued' };
