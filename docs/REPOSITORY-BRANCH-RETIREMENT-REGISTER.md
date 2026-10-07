@@ -10,7 +10,7 @@
 
 This register separates **Git history preservation** from **remote branch retention**.
 
-A merged commit remains permanently recoverable through Git history, tags, pull requests, and commit SHAs. A remote branch therefore remains only when it represents a genuinely active workstream.
+A merged commit remains permanently recoverable through Git history, pull requests, and commit SHAs. A remote branch therefore remains only when it represents a genuinely active workstream.
 
 ## Retirement rules
 
@@ -23,101 +23,101 @@ A merged commit remains permanently recoverable through Git history, tags, pull 
 7. Any unique, still-required work must be transferred through a reviewed PR before the source branch is retired.
 8. The remote branch inventory is authoritative for the count.
 
-## High-confidence retirement candidates
+## Canonical active branches
 
-These live remote branches are confirmed **0 commits ahead of `main`** and are therefore safe retirement candidates without a merge-for-retirement maneuver:
-
-- `feat/operation-queue-runtime-mainline`
-- `feat/persistent-execution-reservation`
-- `feat/postgres-coordinator-e2e-converged`
-- `fix/operation-store-mutation-boundary`
-- `refactor/canonical-execution-lifecycle`
-- `test/operations-concurrency-gate`
-
-They are behind `main` and add no unique commits relative to the current mainline. Delete them directly when remote branch-delete authority is available.
-
-## Requires content review before retirement
-
-These live remote branches contain commits not present in `main` by SHA comparison. Their unique commits must be evaluated against the current tree before retirement; do not merge them merely to eliminate the branch:
-
-- `feat/operations-persistence-postgres`
-- `feat/postgres-execution-reservation-adapter`
-- `feat/research-intelligence-capability`
-- `feat/research-provider-contract`
-- `feat/vertical-evidence-annotation`
-- `fix/authorization-context-for-rls`
-- `test/auth-integration-contract`
-- `test/fresh-db-reconciliation-harness`
-- `revert/direct-migration-parity-marker`
-
-The current canonical workstream branches are intentionally retained:
-
-- `feat/ai-agent-infrastructure`
-- `feat/api-sdk-contracts`
-- `feat/field-acquisition`
-- `feat/knowledge-graph-next`
-- `feat/multisurface-adapters`
-- `feat/research-intelligence-next`
-- `feat/security-release-engineering`
-- `feat/space-time-next`
-
-## Target active slots
-
-The steady-state budget is:
+The currently verified remote inventory contains exactly nine branches:
 
 1. `main`
-2. Archaeological capability A
-3. Archaeological capability B
-4. Shared platform infrastructure
-5. API / SDK contracts
-6. Database / schema
-7. Multisurface adapters
-8. AI / agent infrastructure
-9. Security / release engineering
+2. `feat/ai-agent-infrastructure`
+3. `feat/api-sdk-contracts`
+4. `feat/field-acquisition`
+5. `feat/knowledge-graph-next`
+6. `feat/multisurface-adapters`
+7. `feat/research-intelligence-next`
+8. `feat/security-release-engineering`
+9. `feat/space-time-next`
 
-Only genuine work occupies a slot. If fewer than eight concurrent workstreams exist, the repository intentionally remains below nine branches rather than creating placeholders.
+No non-canonical remote branches are currently present.
+
+## Active-workstream rule
+
+The nine branches above are retained because they represent the current architectural workstreams. Their histories are not assumed mergeable merely because they are active.
+
+Before merging any workstream branch:
+
+- compare it with current `main`;
+- identify changes unique to the branch;
+- verify whether those changes are still required;
+- transfer only the required changes through a reviewed PR;
+- run the relevant security, architecture, database, concurrency and integration gates;
+- merge only after the result is compatible with current `main`;
+- delete the source branch after successful merge and verification.
+
+A branch that is substantially behind `main` must not be force-moved or merged merely to consume/release a branch slot.
+
+## Current architectural workstreams
+
+- `feat/ai-agent-infrastructure` — AI/agent boundary and infrastructure.
+- `feat/api-sdk-contracts` — versioned API/SDK capability boundary.
+- `feat/field-acquisition` — field evidence acquisition.
+- `feat/knowledge-graph-next` — knowledge graph capability.
+- `feat/multisurface-adapters` — independent surface/transport adapters.
+- `feat/research-intelligence-next` — provider-neutral research capability.
+- `feat/security-release-engineering` — security, migration and release verification.
+- `feat/space-time-next` — spatial/temporal capability.
+
+## Branch hygiene and source-code architecture are coupled by policy, not implementation
+
+Repository hygiene does not justify architectural shortcuts.
+
+The source-code rule remains:
+
+> Split responsibility only where the split strengthens an independent architectural boundary.
+
+Valid boundaries are:
+
+- change;
+- trust;
+- persistence;
+- provider/device dependency;
+- independent reuse.
+
+Do not split tightly coupled execution responsibilities merely because a file or class grows. In particular, the protected execution sequence remains cohesive:
+
+`Authorization → Reservation → Handler → Durable Outcome → Lifecycle/Outbox`
+
+The execution coordinator is therefore treated as frozen infrastructure unless a concrete missing invariant or boundary is demonstrated.
 
 ## Ecosystem architecture rule
 
-All active capabilities must consume the shared chain:
+All active capabilities consume the shared chain:
 
 `Identity → Authorization → Tenant/RLS → Capability Contract → Operation → Reservation → Handler → Durable Outcome → Outbox → Provenance`
 
 A domain capability may add domain behavior, but it may not create a competing authorization, tenant-isolation, lifecycle, reservation, idempotency, audit, or protected-mutation mechanism.
 
-## Current verified state — 2026-10-05
+## Operational enforcement
 
-The live GitHub remote was re-read on 2026-10-05 and contains **25 branches**. `main` is authoritative. The nine intended active slots remain an architectural target, but the remote count is not yet compliant because this connected GitHub interface exposes no remote-branch deletion operation.
+CI verifies the exact nine-branch budget on pushes to `main`. The CI gate is an audit, not a deletion mechanism.
 
-The canonical active workstream set remains:
+Remote inventory must be re-read after every branch retirement or creation action. No branch may be retired by force-moving its ref to another commit.
 
-- `main`
-- `feat/ai-agent-infrastructure`
-- `feat/api-sdk-contracts`
-- `feat/field-acquisition`
-- `feat/knowledge-graph-next`
-- `feat/multisurface-adapters`
-- `feat/research-intelligence-next`
-- `feat/security-release-engineering`
-- `feat/space-time-next`
+## Current verified state — 2026-10-07
 
-The six high-confidence candidates above are confirmed 0-ahead of `main`; merging them would create no architectural value and is prohibited by this register. The remaining review branches have unique commits relative to `main`, so retirement requires content-level transfer analysis. Unique commits are not automatically required: `main` remains the source of truth.
+The live GitHub remote was re-read on 2026-10-07 and contains exactly **9 branches**, matching the canonical set above.
 
+This closes the previously documented branch-count gap. The historical retirement analysis remains preserved in Git history, but obsolete branch names are no longer represented as active remote development lines.
 
-### Enforcement decision
+The repository is therefore currently compliant with the nine-branch budget.
 
-1. Do not force-move any branch to `main` as a substitute for deletion.
-2. Do not create placeholder branches.
-3. Do not merge stale work merely to retire a branch.
-4. Transfer only genuinely missing, still-required work through reviewed commits/PRs.
-5. Retire branches that add no current value once remote deletion is performed from a client with branch-delete authority.
-6. Re-read the remote inventory after every retirement action.
-7. Update CI's nine-branch allowlist only after the remote inventory actually reaches the canonical nine.
+## Next convergence rule
 
-The nine-branch target is therefore **architecturally selected but operationally not yet complete**.
+The next repository-level objective is not to create more branches. It is to reconcile the existing active workstreams safely with current `main`:
 
-## Collective retirement execution — 2026-10-05
+1. verify current CI after the execution-coordinator syntax correction;
+2. transfer only genuinely unique, still-required work from stale/diverged branches;
+3. merge only reviewed, validated work;
+4. delete a completed source branch immediately after successful merge;
+5. never exceed nine active branches.
 
-Current live inventory: **25 branches**, consisting of the nine canonical branches plus 16 non-canonical branches. The six 0-ahead branches are immediate retirement candidates. The remaining nine review branches have unique commits relative to `main`; their changed paths have been checked against the current `main` tree and are represented there, so they are also eligible for archival and retirement. The temporary `chore/nine-branch-retirement-trigger` branch is operationally disposable and must not survive convergence.
-
-No automated deletion executor is retained in the repository because the available execution interface cannot safely perform remote branch deletion. Physical deletion must be performed through a client with branch-delete authority, followed by an independent remote inventory check.
+The objective is **one trustworthy mainline plus a fixed budget of genuine workstreams**, not nine branches for their own sake.
