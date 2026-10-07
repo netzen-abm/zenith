@@ -26,7 +26,9 @@ Every protected capability entrypoint that exposes an executable `Capability` or
 5. route execution through the coordinator;
 6. keep domain handler logic behind the coordinator;
 7. honor the coordinator's execution decision;
-8. avoid direct provider/persistence implementation imports.
+8. avoid direct provider/persistence implementation imports;
+9. never execute authorization directly from capability code;
+10. never mutate the protected operations lifecycle directly from capability code.
 
 The gate is intentionally structural. It is not a line-count rule and does not prescribe arbitrary class decomposition.
 
