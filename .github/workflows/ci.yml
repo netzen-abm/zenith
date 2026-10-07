@@ -253,7 +253,7 @@ jobs:
             done
             return 1
           }
-          mapfile -t branches < <(gh api --paginate "repos/$REPO/branches?per_page=100" --jq '.[].name')
+          mapfile -t branches < <(gh api "repos/$REPO/branches?per_page=100" --jq '.[].name' | sort -u)
           unexpected=0
           for branch in "${branches[@]}"; do
             if is_protected "$branch"; then
@@ -263,6 +263,6 @@ jobs:
               unexpected=$((unexpected + 1))
             fi
           done
-          remaining=$(gh api --paginate "repos/$REPO/branches?per_page=100" --jq 'length' | awk '{s += $1} END {print s+0}')
+          remaining=${#branches[@]}
           echo "Branch audit: noncanonical=$unexpected remaining=$remaining target=9"
           [[ "$remaining" -eq 9 ]]
