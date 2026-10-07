@@ -13,8 +13,8 @@ const db = {
 };
 
 const authorization = { authorize: async () => true };
-const reservation = { reserve: async (operation: unknown) => ({ reserved: true, attemptCount: 1, operation }) };
-const outcomeRecorder = { record: async () => ({}) };
+const reservation = { reserve: async (operationId: string) => ({ allowed: true, decision: 'allow', attemptCount: 1 }) };
+const outcomeRecorder = { record: async () => ({ recorded: true, decision: 'recorded' }) };
 
 const capability = new KnowledgeGraphCapability(db, authorization, reservation, outcomeRecorder);
 await capability.execute({
