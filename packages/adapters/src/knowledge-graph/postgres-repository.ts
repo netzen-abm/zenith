@@ -1,5 +1,5 @@
-import type { KnowledgeGraphRelationship } from './domain.ts';
-import type { KnowledgeGraphRequestRepository } from './repository.ts';
+import type { KnowledgeGraphRelationship } from '../../../capabilities/src/knowledge-graph/domain.ts';
+import type { KnowledgeGraphRequestRepository } from '../../../capabilities/src/knowledge-graph/repository.ts';
 
 type QueryExecutor = {
   query<T extends Record<string, unknown>>(sql: string, params: readonly unknown[]): Promise<T[]>;
