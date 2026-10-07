@@ -45,6 +45,19 @@ while IFS= read -r -d '' file; do
   require_pattern 'private async handle\('     "protected capability must keep domain handler logic behind reservation"
   require_pattern 'result\.executed'     "protected capability must honor coordinator execution decision"
 
+  # Capability code must not execute authorization directly; the coordinator is the
+  # canonical admission boundary.
+  if grep -En '\\.(authorize|authorizeCapability)\\(' "$file" >/dev/null; then
+    echo "ERROR: protected capability executes authorization directly; use ExecutionCoordinator: $file"
+    failed=1
+  fi
+
+  # Capability code must not mutate the protected operations lifecycle directly.
+  if grep -En 'operations\\.(transition|reserve_execution|record_execution_outcome)\\(' "$file" >/dev/null; then
+    echo "ERROR: capability code mutates protected operations lifecycle directly: $file"
+    failed=1
+  fi
+
   # Capability code must remain provider/persistence implementation neutral.
   if grep -En "from ['\"](.*core/database|.*adapters|.*infrastructure|.*supabase|pg|postgres)['\"]" "$file" >/dev/null; then
     echo "ERROR: protected capability imports provider/persistence implementation: $file"
