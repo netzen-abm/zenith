@@ -57,3 +57,7 @@ A new protected capability is ecosystem-ready only when:
 - fresh-database reconciliation remains green.
 
 Core execution-kernel changes additionally require an ADR and corresponding invariant tests.
+
+## Persistence-boundary rule
+
+Execution-kernel contracts remain persistence-neutral. Admission/preparation may perform capability-owned request persistence only through a provider-neutral repository contract; raw database/query executors must not cross into `ExecutionCoordinator` or capability code. Database transactions, SQL, RLS and provider-specific persistence remain contained within persistence adapters.
