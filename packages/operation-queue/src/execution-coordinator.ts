@@ -45,7 +45,7 @@ export class ExecutionCoordinator {
     let admittedOperation = operation;
     if (preparation) {
       admittedOperation = (await preparation(operation)) ?? operation;
-
+    }
 
     const reserved = await this.reservation.reserve(admittedOperation.operationId);
     if (!reserved.allowed) {
