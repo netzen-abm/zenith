@@ -89,8 +89,8 @@ run_snapshot functions "select format('%s.%s(%s):%s:%s', n.nspname, p.proname, p
 run_snapshot rls-policies "select format('%s.%s:%s:%s:%s', schemaname, tablename, policyname, coalesce(cmd,''), coalesce(qual,'') || ':' || coalesce(with_check,'')) from pg_policies where schemaname in ('core','audit') order by 1"
 run_snapshot columns "select format('%s.%s:%s:%s:%s', n.nspname, c.relname, a.attname, pg_catalog.format_type(a.atttypid,a.atttypmod), a.attnotnull::text) from pg_attribute a join pg_class c on c.oid=a.attrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname in ('core','audit') and c.relkind in ('r','v','m') and a.attnum > 0 and not a.attisdropped order by 1"
 printf '\n==> snapshot files\n'
-for snapshot in "$snapshot_dir"/*; do
-  printf '\n--- %s ---\n' "$(basename "$snapshot")"
+while IFS= read -r -d '' snapshot; do
+  printf '\n--- %s ---\n' "${snapshot#"$snapshot_dir"/}"
   cat "$snapshot"
-done
+done < <(find "$snapshot_dir" -type f -print0 | sort -z)
 printf '\nFresh repository database reproduction, foundation, evidence/provenance, Knowledge Graph, Space/Time, Research, and identity/organisation context assertions completed.\n'
