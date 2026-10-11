@@ -37,5 +37,5 @@ export function retry(operation: Operation, retryable: boolean, now = Date.now()
 }
 
 export function isTerminal(state: OperationState): boolean {
-  return ['completed', 'rejected', 'expired', 'cancelled'].includes(state);
+  return ['completed', 'rejected', 'expired', 'cancelled', 'conflict'].includes(state);
 }
