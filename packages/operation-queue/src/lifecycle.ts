@@ -1,5 +1,5 @@
 import type { OperationState } from '../../contracts/src/operation.ts';
-import { OPERATION_TRANSITIONS } from '../../contracts/src/operation-state.ts';
+import { isTerminal as isCanonicalTerminal, OPERATION_TRANSITIONS } from '../../contracts/src/operation-state.ts';
 
 export type Operation = {
   operationId: string;
@@ -37,5 +37,5 @@ export function retry(operation: Operation, retryable: boolean, now = Date.now()
 }
 
 export function isTerminal(state: OperationState): boolean {
-  return ['completed', 'rejected', 'expired', 'cancelled', 'conflict'].includes(state);
+  return isCanonicalTerminal(state);
 }
