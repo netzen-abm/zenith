@@ -1,4 +1,4 @@
-import { TERMINAL_OPERATION_STATES, type OperationState } from "./operation";
+import { TERMINAL_OPERATION_STATES, type OperationState } from "./operation.ts";
 
 // Canonical lifecycle contract consumed by runtime execution code.
 // The PostgreSQL operations.transition() function is the persistent enforcement point.
