@@ -12,6 +12,8 @@ op = transition(op, 'in_flight');
 op = transition(op, 'acknowledged');
 op = transition(op, 'completed');
 assert.equal(isTerminal(op.state), true);
+assert.equal(isTerminal('conflict'), true, 'conflict is terminal until explicitly reopened by reconciliation');
+assert.equal(isTerminal('in_flight'), false);
 
 assert.throws(() => transition(base, 'in_flight'), /invalid_transition/);
 assert.throws(
