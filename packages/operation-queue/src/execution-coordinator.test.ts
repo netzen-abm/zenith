@@ -117,3 +117,46 @@ await assert.rejects(
   () => failedDurability.execute(operation),
   /execution_outcome_not_durable:operation_not_in_flight/,
 );
+
+
+// A provider side effect may succeed even when durable outcome recording fails.
+// Keep the reservation in-flight and prove a caller retry cannot enter the
+// non-idempotent handler a second time. This is the crash-window safety gate.
+let providerEffects = 0;
+let reservationClaimed = false;
+const crashWindowCoordinator = new ExecutionCoordinator(
+  authorization,
+  {
+    async reserve() {
+      if (reservationClaimed) {
+        return { allowed: false, decision: 'deny_state' };
+      }
+      reservationClaimed = true;
+      return { allowed: true, decision: 'allow', attemptCount: 2 };
+    },
+  },
+  async () => {
+    providerEffects += 1;
+    return { outcome: 'acknowledged', resultRef: 'provider-operation-42' };
+  },
+  {
+    async record() {
+      throw new Error('simulated_process_interruption_before_durable_outcome');
+    },
+  },
+);
+
+await assert.rejects(
+  () => crashWindowCoordinator.execute(operation),
+  /simulated_process_interruption_before_durable_outcome/,
+);
+assert.equal(providerEffects, 1, 'first attempt reached the provider once');
+
+// Retrying the same operation must be rejected at reservation; do not infer
+// provider failure from the missing database outcome and repeat the side effect.
+const ambiguousRetry = await crashWindowCoordinator.execute(operation);
+assert.deepEqual(ambiguousRetry, {
+  executed: false,
+  decision: 'deny_reservation',
+});
+assert.equal(providerEffects, 1, 'ambiguous operation must not blindly replay');

@@ -36,3 +36,15 @@ The repository CI must keep the PostgreSQL-backed coordinator E2E, reservation c
 Changes to these authorities or invariants require an ADR and corresponding positive and negative tests before adoption.
 
 See also: `docs/adr/0007-execution-coordinator-reservation-boundary.md` and `docs/adr/0013-durable-execution-outcome-and-audit-boundary.md`.
+
+## Ambiguous external outcome rule
+
+A missing or failed durable outcome write does **not** prove that the provider side effect failed. Once reservation succeeds and a handler may have reached an external dependency, an interruption before durable recording is an ambiguous outcome.
+
+- Do not blindly replay the operation or infer provider failure from recorder failure.
+- Keep the operation non-replayable through the existing persisted reservation/lifecycle boundary until reconciliation establishes a safe next action.
+- A provider adapter may resolve ambiguity only through its documented operation reference, idempotency, or outcome-query capability; provider-specific behavior stays outside the core coordinator.
+- If the provider cannot establish the outcome, preserve an explicit unresolved/conflict condition for safe domain/operator resolution.
+- `acknowledged` remains distinct from `completed`; durable acknowledgement is not domain completion.
+
+The coordinator's non-durable error is fail-closed signaling, not evidence that an external side effect did not occur. Tests must cover the provider-success/recorder-failure window and prove a retry cannot enter a non-idempotent handler again.
