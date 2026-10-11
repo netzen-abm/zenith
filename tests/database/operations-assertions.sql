@@ -103,6 +103,26 @@ begin
     if sqlerrm not like 'invalid_operation_transition:%' then raise; end if;
   end;
 
+  -- Conflict is terminal: the same operation cannot be silently requeued.
+  insert into operations.operations(
+    id, organisation_id, identity_id, idempotency_key, action, purpose, expires_at
+  ) values (
+    '00000000-0000-0000-0000-0000000000c3',
+    '00000000-0000-0000-0000-0000000000a1',
+    '00000000-0000-0000-0000-0000000000a2',
+    'idem-conflict-terminal-1', 'annotate', 'test conflict terminal', now() + interval '1 hour'
+  );
+  perform operations.transition('00000000-0000-0000-0000-0000000000c3','created','authorized');
+  perform operations.transition('00000000-0000-0000-0000-0000000000c3','authorized','queued');
+  perform operations.transition('00000000-0000-0000-0000-0000000000c3','queued','in_flight');
+  perform operations.transition('00000000-0000-0000-0000-0000000000c3','in_flight','conflict');
+  begin
+    perform operations.transition('00000000-0000-0000-0000-0000000000c3','conflict','queued');
+    raise exception 'conflicted operation unexpectedly requeued';
+  exception when others then
+    if sqlerrm not like 'invalid_operation_transition:%' then raise; end if;
+  end;
+
   -- Switch to tenant B and verify A's operation is invisible.
   perform set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000b3',true);
   perform set_config('app.organisation_id','00000000-0000-0000-0000-0000000000b1',true);
