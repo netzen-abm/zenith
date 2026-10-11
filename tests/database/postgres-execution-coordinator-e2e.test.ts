@@ -157,3 +157,84 @@ await psql(`delete from operations.execution_outbox where operation_id = '${oper
 delete from operations.execution_outcomes where operation_id = '${operationId}';
 delete from operations.operations where id = '${operationId}'`);
 console.log('PostgreSQL-backed ExecutionCoordinator E2E assertions passed.');
+
+
+// Real PostgreSQL crash-window proof: the provider handler succeeds, but the
+// outcome recorder fails before persistence. The durable reservation must
+// prevent a retry from entering the handler a second time.
+const ambiguousOperationId = '00000000-0000-0000-0000-0000000000f2';
+await psql(`
+delete from operations.execution_outbox where operation_id = '${ambiguousOperationId}';
+delete from operations.execution_outcomes where operation_id = '${ambiguousOperationId}';
+delete from operations.operations where id = '${ambiguousOperationId}';
+insert into operations.operations(
+  id,organisation_id,identity_id,idempotency_key,action,resource_id,purpose,expires_at
+) values (
+  '${ambiguousOperationId}','${organisationId}','${identityId}','coordinator-ambiguous-e2e',
+  'annotate','${resourceId}','coordinator ambiguous outcome e2e',clock_timestamp()+interval '10 minutes'
+);
+begin;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','${authUserId}',true);
+select set_config('app.identity_id','${identityId}',true);
+select set_config('app.organisation_id','${organisationId}',true);
+select operations.transition('${ambiguousOperationId}','created','authorized');
+select operations.transition('${ambiguousOperationId}','authorized','queued');
+commit;
+`);
+
+let ambiguousHandlerEntries = 0;
+const ambiguousCoordinator = new ExecutionCoordinator(
+  authorization,
+  reservation,
+  async () => {
+    ambiguousHandlerEntries += 1;
+    return { outcome: 'acknowledged', resultRef: 'provider-effect-succeeded' };
+  },
+  {
+    async record() {
+      throw new Error('simulated_outcome_persistence_interruption');
+    },
+  },
+);
+const ambiguousOperation = {
+  operationId: ambiguousOperationId,
+  idempotencyKey: 'coordinator-ambiguous-e2e',
+  action: 'annotate',
+  resourceId,
+  purpose: 'coordinator ambiguous outcome e2e',
+  state: 'queued' as const,
+  createdAt: new Date().toISOString(),
+  attemptCount: 0,
+};
+
+await assert.rejects(
+  () => ambiguousCoordinator.execute(ambiguousOperation),
+  /simulated_outcome_persistence_interruption/,
+);
+assert.equal(ambiguousHandlerEntries, 1);
+
+const ambiguousRetry = await ambiguousCoordinator.execute(ambiguousOperation);
+assert.equal(ambiguousRetry.executed, false);
+assert.equal(ambiguousRetry.decision, 'deny_reservation');
+assert.equal(ambiguousHandlerEntries, 1, 'persistent reservation must block blind replay');
+
+const ambiguousState = await psql(
+  `select state || '|' || attempt_count from operations.operations where id = '${ambiguousOperationId}'`,
+);
+assert.equal(ambiguousState, 'in_flight|1');
+const ambiguousOutcomeCount = await psql(
+  `select count(*) from operations.execution_outcomes where operation_id = '${ambiguousOperationId}'`,
+);
+const ambiguousOutboxCount = await psql(
+  `select count(*) from operations.execution_outbox where operation_id = '${ambiguousOperationId}'`,
+);
+assert.equal(ambiguousOutcomeCount, '0');
+assert.equal(ambiguousOutboxCount, '0');
+
+await psql(`
+delete from operations.execution_outbox where operation_id = '${ambiguousOperationId}';
+delete from operations.execution_outcomes where operation_id = '${ambiguousOperationId}';
+delete from operations.operations where id = '${ambiguousOperationId}';
+`);
+console.log('PostgreSQL ambiguous-outcome non-replay assertions passed.');
