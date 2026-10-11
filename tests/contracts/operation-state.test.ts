@@ -11,8 +11,10 @@ assert(canTransition("in_flight", "retry_wait"), "execution must retry");
 assert(canTransition("in_flight", "conflict"), "execution must surface conflict");
 assert(!canTransition("completed", "queued"), "completed must remain terminal");
 assert(!canTransition("expired", "queued"), "expired must never resurrect");
+assert(!canTransition("conflict", "queued"), "conflict must be resolved through a new operation, not resurrected");
 assert(isTerminal("completed"), "completed is terminal");
 assert(isTerminal("expired"), "expired is terminal");
+assert(isTerminal("conflict"), "conflict is terminal");
 
 const event = transition("op-1", "created", "authorized", "2026-09-18T00:00:00Z");
 assert(event.operationId === "op-1", "transition preserves operation identity");
