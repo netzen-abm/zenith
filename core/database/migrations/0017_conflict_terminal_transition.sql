@@ -9,7 +9,7 @@ create or replace function operations.transition(
 returns operations.operations
 language plpgsql
 volatile
-security invoker
+security definer
 set search_path = ''
 as $$
 declare
