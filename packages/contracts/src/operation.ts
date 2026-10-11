@@ -52,5 +52,5 @@ export interface OperationPolicy {
 }
 
 export const TERMINAL_OPERATION_STATES: readonly OperationState[] = [
-  "completed", "cancelled", "rejected", "expired"
+  "completed", "cancelled", "rejected", "expired", "conflict"
 ];
