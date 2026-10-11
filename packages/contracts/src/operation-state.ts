@@ -1,4 +1,4 @@
-import type { OperationState } from "./operation";
+import { TERMINAL_OPERATION_STATES, type OperationState } from "./operation";
 
 // Canonical lifecycle contract consumed by runtime execution code.
 // The PostgreSQL operations.transition() function is the persistent enforcement point.
@@ -10,7 +10,7 @@ export const OPERATION_TRANSITIONS: Record<OperationState, readonly OperationSta
   acknowledged: ["completed"],
   retry_wait: ["queued", "expired", "blocked", "cancelled"],
   blocked: ["queued", "cancelled", "expired", "rejected"],
-  conflict: ["queued", "cancelled", "rejected"],
+  conflict: ["cancelled", "rejected"],
   expired: [],
   rejected: [],
   completed: [],
@@ -35,5 +35,5 @@ export function transition(
 }
 
 export function isTerminal(state: OperationState): boolean {
-  return ["completed", "cancelled", "rejected", "expired"].includes(state);
+  return TERMINAL_OPERATION_STATES.includes(state);
 }
