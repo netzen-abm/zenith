@@ -238,3 +238,67 @@ delete from operations.execution_outcomes where operation_id = '${ambiguousOpera
 delete from operations.operations where id = '${ambiguousOperationId}';
 `);
 console.log('PostgreSQL ambiguous-outcome non-replay assertions passed.');
+
+// PostgreSQL proof for a handler that throws after its side effect may have
+// occurred: conflict outcome + outbox must be durable and retries must be denied.
+const handlerFailureOperationId = '00000000-0000-0000-0000-0000000000f3';
+await psql(`
+delete from operations.execution_outbox where operation_id = '${handlerFailureOperationId}';
+delete from operations.execution_outcomes where operation_id = '${handlerFailureOperationId}';
+delete from operations.operations where id = '${handlerFailureOperationId}';
+insert into operations.operations(id,organisation_id,identity_id,idempotency_key,action,resource_id,purpose,expires_at)
+values ('${handlerFailureOperationId}','${organisationId}','${identityId}','coordinator-handler-failure-e2e',
+  'annotate','${resourceId}','coordinator handler failure e2e',clock_timestamp()+interval '10 minutes');
+begin;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','${authUserId}',true);
+select set_config('app.identity_id','${identityId}',true);
+select set_config('app.organisation_id','${organisationId}',true);
+select operations.transition('${handlerFailureOperationId}','created','authorized');
+select operations.transition('${handlerFailureOperationId}','authorized','queued');
+commit;
+`);
+
+let handlerFailureEntries = 0;
+const handlerFailureCoordinator = new ExecutionCoordinator(
+  authorization,
+  reservation,
+  async () => {
+    handlerFailureEntries += 1;
+    throw new Error('simulated_provider_outcome_ambiguous');
+  },
+  outcomeRecorder,
+);
+const handlerFailureOperation = {
+  operationId: handlerFailureOperationId, idempotencyKey: 'coordinator-handler-failure-e2e',
+  action: 'annotate', resourceId, purpose: 'coordinator handler failure e2e',
+  state: 'queued' as const, createdAt: new Date().toISOString(), attemptCount: 0,
+};
+await assert.rejects(
+  () => handlerFailureCoordinator.execute(handlerFailureOperation),
+  /simulated_provider_outcome_ambiguous/,
+);
+assert.equal(handlerFailureEntries, 1);
+assert.equal(
+  await psql(`select state || '|' || attempt_count from operations.operations where id = '${handlerFailureOperationId}'`),
+  'conflict|1',
+);
+assert.equal(
+  await psql(`select outcome || '|' || error_code from operations.execution_outcomes where operation_id = '${handlerFailureOperationId}'`),
+  'conflict|handler_outcome_unknown',
+);
+assert.equal(
+  await psql(`select count(*) from operations.execution_outbox where operation_id = '${handlerFailureOperationId}'`),
+  '1',
+);
+const handlerFailureRetry = await handlerFailureCoordinator.execute(handlerFailureOperation);
+assert.equal(handlerFailureRetry.executed, false);
+assert.equal(handlerFailureRetry.decision, 'deny_reservation');
+assert.equal(handlerFailureEntries, 1, 'durable conflict must block blind replay');
+await psql(`
+delete from operations.execution_outbox where operation_id = '${handlerFailureOperationId}';
+delete from operations.execution_outcomes where operation_id = '${handlerFailureOperationId}';
+delete from operations.operations where id = '${handlerFailureOperationId}';
+`);
+console.log('PostgreSQL handler-failure durable conflict assertions passed.');
+

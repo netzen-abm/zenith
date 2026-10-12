@@ -160,3 +160,17 @@ assert.deepEqual(ambiguousRetry, {
   decision: 'deny_reservation',
 });
 assert.equal(providerEffects, 1, 'ambiguous operation must not blindly replay');
+
+// Ambiguous handler failures are durably recorded as conflicts before rethrow.
+const handlerFailureOutcomes: string[] = [];
+const handlerFailureCoordinator = new ExecutionCoordinator(
+  authorization,
+  { reserve: async () => ({ allowed: true, decision: 'allow', attemptCount: 3 }) },
+  async () => { throw new Error('simulated_handler_failure'); },
+  { async record(_operation, outcome) {
+    handlerFailureOutcomes.push(`${outcome.outcome}:${outcome.errorCode}`);
+    return { recorded: true, decision: 'recorded' };
+  } },
+);
+await assert.rejects(() => handlerFailureCoordinator.execute(operation), /simulated_handler_failure/);
+assert.deepEqual(handlerFailureOutcomes, ['conflict:handler_outcome_unknown']);
