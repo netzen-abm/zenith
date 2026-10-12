@@ -18,6 +18,7 @@ const operation = new ResearchOperation(store, {
 }, {
   authorization: { authorize: async () => true },
   reservation: { reserve: async () => ({ allowed: true, decision: 'reserved', attemptCount: 1 }) },
+  operationStore: new MemoryOperationStore(),
   outcomeRecorder: { record: async (_op, outcome) => {
     calls.push('outcome:' + outcome.outcome);
     return { recorded: true, decision: 'recorded' };
