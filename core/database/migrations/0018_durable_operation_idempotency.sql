@@ -12,6 +12,7 @@ create or replace function operations.create_or_get(
 returns table (
   created boolean,
   operation_id uuid,
+  organisation_id uuid,
   idempotency_key text,
   action text,
   identity_id uuid,
@@ -58,7 +59,7 @@ begin
        or v_operation.payload_ref is distinct from p_payload_ref then
       raise exception 'operation_idempotency_conflict';
     end if;
-    return query select false, v_operation.id, v_operation.idempotency_key,
+    return query select false, v_operation.id, v_operation.organisation_id, v_operation.idempotency_key,
       v_operation.action, v_operation.identity_id, v_operation.purpose,
       v_operation.state, v_operation.created_at, v_operation.expires_at,
       v_operation.attempt_count, v_operation.payload_ref;
@@ -74,7 +75,7 @@ begin
     clock_timestamp(), p_expires_at, 0, p_payload_ref
   ) returning * into v_operation;
 
-  return query select true, v_operation.id, v_operation.idempotency_key,
+  return query select true, v_operation.id, v_operation.organisation_id, v_operation.idempotency_key,
     v_operation.action, v_operation.identity_id, v_operation.purpose,
     v_operation.state, v_operation.created_at, v_operation.expires_at,
     v_operation.attempt_count, v_operation.payload_ref;
