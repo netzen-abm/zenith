@@ -54,10 +54,26 @@ export class ExecutionCoordinator {
     const executionOperation = reserved.attemptCount === undefined
       ? admittedOperation
       : { ...admittedOperation, attemptCount: reserved.attemptCount };
-    const outcome = await this.handler(executionOperation);
+    let outcome: ExecutionOutcome;
+    let handlerFailure: unknown;
+    let handlerFailed = false;
+    try {
+      outcome = await this.handler(executionOperation);
+    } catch (error) {
+      // The handler may have performed an external side effect before throwing.
+      // Record an ambiguous conflict so a retry cannot assume the side effect failed.
+      handlerFailed = true;
+      handlerFailure = error;
+      outcome = { outcome: 'conflict', errorCode: 'handler_outcome_unknown' };
+    }
+
     const durable = await this.outcomeRecorder.record(executionOperation, outcome);
     if (!durable.recorded) {
       throw new Error(`execution_outcome_not_durable:${durable.decision}`);
+    }
+    if (handlerFailed) {
+      if (handlerFailure instanceof Error) throw handlerFailure;
+      throw new Error('execution_handler_failed:conflict_outcome_recorded');
     }
     return { executed: true, decision: 'allow' };
   }
