@@ -17,6 +17,7 @@ const operation = new ResearchOperation(store, {
 }, {
   authorization: { authorize: async () => true },
   reservation: { reserve: async () => ({ allowed: true, decision: 'reserved', attemptCount: 1 }) },
+  operationStore: new MemoryOperationStore(),
   outcomeRecorder: { record: async () => ({ recorded: false, decision: 'outcome_rejected' }) },
 });
 await assert.rejects(
