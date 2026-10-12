@@ -1,28 +1,9 @@
 import type { OperationEnvelope } from '../../contracts/src/operation.ts';
+import type { CreateOrGetOperationInput, CreateOrGetOperationResult, OperationStore } from '../../contracts/src/operation-store.ts';
 
 export type OperationStoreSqlExecutor = {
   query<T extends Record<string, unknown>>(sql: string, params: readonly unknown[]): Promise<T[]>;
 };
-
-export type CreateOrGetOperationInput = {
-  operationId: string;
-  idempotencyKey: string;
-  action: string;
-  organisationId: string;
-  identityId: string;
-  purpose: string;
-  expiresAt: string;
-  payloadRef?: string;
-};
-
-export type CreateOrGetOperationResult = {
-  created: boolean;
-  operation: OperationEnvelope;
-};
-
-export interface OperationStore {
-  createOrGet(input: CreateOrGetOperationInput): Promise<CreateOrGetOperationResult>;
-}
 
 /** PostgreSQL persistence adapter; policy and execution remain in Core/coordinator. */
 export class PostgresOperationStore implements OperationStore {
