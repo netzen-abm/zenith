@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { OperationEnvelope } from '../../contracts/src/operation.ts';
-import type { OperationStore } from '../../operation-queue/src/postgres-operation-store.ts';
+import type { OperationStore } from '../../contracts/src/operation-store.ts';
 import { ExecutionCoordinator, type ExecutionAuthorization, type ExecutionOutcomeRecorder, type ExecutionReservation } from '../../operation-queue/src/execution-coordinator.ts';
 import { validateResearchQuery, type ResearchQuery, type ResearchProvider } from './research-intelligence.ts';
 import type { ResearchQueryStore } from './research/repository.ts';
