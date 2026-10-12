@@ -36,6 +36,7 @@ export class PostgresOperationStore implements OperationStore {
     const rows = await this.db.query<{
       created: boolean;
       operation_id: string;
+      organisation_id: string;
       idempotency_key: string;
       action: string;
       identity_id: string;
@@ -60,7 +61,7 @@ export class PostgresOperationStore implements OperationStore {
         operationId: row.operation_id,
         idempotencyKey: row.idempotency_key,
         action: row.action,
-        organisationId: input.organisationId,
+        organisationId: row.organisation_id,
         identityId: row.identity_id,
         purpose: row.purpose,
         state: row.state,
