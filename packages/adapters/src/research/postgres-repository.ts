@@ -1,4 +1,5 @@
-import type { ResearchQuery, ResearchQueryStore } from '../../capabilities/src/research-intelligence.ts';
+import type { ResearchQuery } from '../../capabilities/src/research-intelligence.ts';
+import type { ResearchQueryStore } from '../../capabilities/src/research/repository.ts';
 
 export type SqlRow = Readonly<Record<string, unknown>>;
 export type SqlClient = {
