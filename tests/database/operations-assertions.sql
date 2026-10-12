@@ -54,6 +54,9 @@ do $$
 declare
   v_count integer;
   v_state text;
+  v_created boolean;
+  v_operation_id uuid;
+  v_second_operation_id uuid;
 begin
   select count(*) into v_count from operations.operations
   where id='00000000-0000-0000-0000-0000000000c1';
@@ -70,6 +73,41 @@ begin
     );
     raise exception 'duplicate idempotency key unexpectedly accepted';
   exception when unique_violation then null;
+  end;
+
+  -- Durable create-or-get: repeated logical request resolves to one operation ID.
+  select created, operation_id into v_created, v_operation_id
+  from operations.create_or_get(
+    '00000000-0000-0000-0000-0000000000c4',
+    '00000000-0000-0000-0000-0000000000a1',
+    'idem-create-or-get-1', 'research.query',
+    '00000000-0000-0000-0000-0000000000a2',
+    'research', now() + interval '1 hour', 'research-query:q1'
+  );
+  if not v_created then raise exception 'first create-or-get did not create operation'; end if;
+
+  select created, operation_id into v_created, v_second_operation_id
+  from operations.create_or_get(
+    '00000000-0000-0000-0000-0000000000c5',
+    '00000000-0000-0000-0000-0000000000a1',
+    'idem-create-or-get-1', 'research.query',
+    '00000000-0000-0000-0000-0000000000a2',
+    'research', now() + interval '1 hour', 'research-query:q1'
+  );
+  if v_created then raise exception 'duplicate create-or-get created another operation'; end if;
+  if v_operation_id <> v_second_operation_id then raise exception 'idempotent operation identity changed'; end if;
+
+  begin
+    perform * from operations.create_or_get(
+      '00000000-0000-0000-0000-0000000000c6',
+      '00000000-0000-0000-0000-0000000000a1',
+      'idem-create-or-get-1', 'research.query',
+      '00000000-0000-0000-0000-0000000000a2',
+      'research', now() + interval '1 hour', 'research-query:different'
+    );
+    raise exception 'idempotency key reused with different payload unexpectedly accepted';
+  exception when others then
+    if sqlerrm <> 'operation_idempotency_conflict' then raise; end if;
   end;
 
   -- CAS lifecycle: valid transition succeeds.
