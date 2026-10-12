@@ -114,6 +114,12 @@ jobs:
           grep -Eqi "security invoker" "$file"
           grep -Eqi "set search_path = ''" "$file"
 
+      - name: Validate explicit migration inventory and order
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tests/database/validate-migration-order.sh
+
       - name: Check migration files are present
         shell: bash
         run: |
