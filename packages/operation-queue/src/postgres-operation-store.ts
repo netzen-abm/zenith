@@ -47,9 +47,9 @@ export class PostgresOperationStore implements OperationStore {
       attempt_count: number;
       payload_ref: string | null;
     }>(
-      'select * from operations.create_or_get($1::uuid,$2,$3,$4::uuid,$5,$6::timestamptz,$7)',
+      'select * from operations.create_or_get($1::uuid,$2::uuid,$3,$4,$5::uuid,$6,$7::timestamptz,$8)',
       [
-        input.operationId, input.idempotencyKey, input.action, input.identityId,
+        input.operationId, input.organisationId, input.idempotencyKey, input.action, input.identityId,
         input.purpose, input.expiresAt, input.payloadRef ?? null,
       ],
     );
