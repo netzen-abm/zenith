@@ -1,4 +1,5 @@
 import { strict as assert } from 'node:assert';
+import { MemoryOperationStore } from './research-operation-store-fixture.ts';
 import { DeterministicResearchProvider } from './research-provider-fixture.ts';
 import { ResearchOperation } from './research-operation.ts';
 import type { ResearchQueryStore } from './research/repository.ts';
@@ -22,6 +23,7 @@ async function build(overrides: Partial<ResearchQuery> = {}, authorization = tru
   const operation = new ResearchOperation(store, provider, {
     authorization: { authorize: async () => { calls.push('authorize'); return authorization; } },
     reservation: { reserve: async () => { calls.push('reserve'); return { allowed: reservation, decision: reservation ? 'reserved' : 'denied', attemptCount: 1 }; } },
+    operationStore: new MemoryOperationStore(),
     outcomeRecorder: { record: async (_op, outcome) => { calls.push('outcome:' + outcome.outcome); return { recorded: true, decision: 'recorded' }; } },
   });
   return { operation, store, calls, query: { ...query, ...overrides } };

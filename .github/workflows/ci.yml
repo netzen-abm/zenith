@@ -218,6 +218,7 @@ jobs:
           node --experimental-strip-types packages/operation-queue/src/lifecycle.test.ts
           node --experimental-strip-types packages/operation-queue/src/execution-coordinator.test.ts
           node --experimental-strip-types packages/operation-queue/src/postgres-execution-reservation.test.ts
+          node --experimental-strip-types packages/operation-queue/src/postgres-operation-store.test.ts
           node --experimental-strip-types packages/operation-queue/src/execution-kernel-conformance.test.ts
 
   branch-hygiene:

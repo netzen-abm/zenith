@@ -40,7 +40,7 @@ assert.equal(calls[0].values[6], JSON.stringify(['trade']));
 assert.equal(calls[0].values[7], JSON.stringify({ period: 'early' }));
 assert.equal(calls[0].values[12], true);
 
-const loaded = await store.get('q-1');
+const loaded = await store.get('q-1', 'org-1');
 assert.equal(select, true);
 assert.equal(loaded?.queryId, 'q-1');
 assert.deepEqual(loaded?.concepts, ['trade']);

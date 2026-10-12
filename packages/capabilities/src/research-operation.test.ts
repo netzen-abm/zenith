@@ -1,4 +1,5 @@
 import { strict as assert } from 'node:assert';
+import { MemoryOperationStore } from './research-operation-store-fixture.ts';
 import { DeterministicResearchProvider } from './research-provider-fixture.ts';
 import { ResearchOperation } from './research-operation.ts';
 import type { ResearchQueryStore } from './research/repository.ts';
@@ -10,6 +11,8 @@ class MemoryQueryStore implements ResearchQueryStore {
 }
 
 const calls: string[] = [];
+const operationStore = new MemoryOperationStore();
+const reservedIds = new Set<string>();
 let handlerAttemptCount = 0;
 const store = new MemoryQueryStore();
 const provider = new DeterministicResearchProvider([
@@ -17,7 +20,8 @@ const provider = new DeterministicResearchProvider([
 ]);
 const operation = new ResearchOperation(store, provider, {
   authorization: { authorize: async () => { calls.push('authorize'); return true; } },
-  reservation: { reserve: async () => { calls.push('reserve'); return { allowed: true, decision: 'reserved', attemptCount: 1 }; } },
+  reservation: { reserve: async id => { calls.push('reserve:' + id); if (reservedIds.has(id)) return { allowed: false, decision: 'deny_state' }; reservedIds.add(id); return { allowed: true, decision: 'reserved', attemptCount: 1 }; } },
+  operationStore,
   outcomeRecorder: { record: async (operation, outcome) => {
     handlerAttemptCount = operation.attemptCount;
     calls.push('outcome:' + outcome.outcome);
@@ -33,4 +37,7 @@ const result = await operation.execute({
 assert.equal(result.action, 'research.query');
 assert.equal(result.attemptCount, 0);
 assert.equal(handlerAttemptCount, 1);
-assert.deepEqual(calls, ['authorize', 'reserve', 'outcome:acknowledged']);
+assert.deepEqual(calls, ['authorize', 'reserve:' + result.operationId, 'outcome:acknowledged']);
+await assert.rejects(() => operation.execute({ queryId: 'q-1', intent: 'discover', text: 'Pattanam', pageSize: 10, requesterIdentityId: 'id-1', organisationId: 'org-1', purpose: 'research' }), /research_not_executed:deny_reservation/);
+assert.equal(calls.filter(call => call.startsWith('reserve:')).length, 2);
+assert.equal(calls[1], calls[4], 'same idempotency key must resolve to the same operation identity');

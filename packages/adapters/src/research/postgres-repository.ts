@@ -1,4 +1,5 @@
-import type { ResearchQuery, ResearchQueryStore } from '../../capabilities/src/research-intelligence.ts';
+import type { ResearchQuery } from '../../capabilities/src/research-intelligence.ts';
+import type { ResearchQueryStore } from '../../capabilities/src/research/repository.ts';
 
 export type SqlRow = Readonly<Record<string, unknown>>;
 export type SqlClient = {
@@ -78,15 +79,15 @@ export class PostgresResearchQueryStore implements ResearchQueryStore {
     return id;
   }
 
-  async get(id: string): Promise<ResearchQuery | undefined> {
+  async get(id: string, organisationId: string): Promise<ResearchQuery | undefined> {
     const result = await this.db.query<ResearchQueryRow>(
       `select id, research_question_id, intent, query_text, concepts, filters, sort,
               page_size, cursor, requested_fields, open_access_required,
               identity_id as requester_identity_id, organisation_id, purpose
          from core.research_query_requests
-        where id = $1
+        where id = $1 and organisation_id = $2
         limit 1`,
-      [id],
+      [id, organisationId],
     );
     const row = result.rows[0];
     return row ? toQuery(row) : undefined;
