@@ -46,7 +46,7 @@ export class ResearchOperation {
         payloadRef: query.queryId,
       });
       canonicalOperation = resolved.operation;
-      const existingQuery = await this.store.get(query.queryId);
+      const existingQuery = await this.store.get(query.queryId, query.organisationId);
       if (existingQuery) {
         if (!sameResearchQuery(existingQuery, query)) throw new Error('research_query_id_conflict');
       } else {
@@ -64,7 +64,7 @@ export class ResearchOperation {
   }
 
   private async handle(operation: OperationEnvelope) {
-    const query = operation.payloadRef ? await this.store.get(operation.payloadRef) : undefined;
+    const query = operation.payloadRef ? await this.store.get(operation.payloadRef, operation.organisationId ?? '') : undefined;
     if (!query) return { outcome: 'rejected' as const, errorCode: 'research_query_not_found' };
     try {
       const result = await this.provider.search(query);
