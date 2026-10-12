@@ -85,7 +85,7 @@ end;
 $$;
 
 revoke all on function operations.create_or_get(uuid,uuid,text,text,uuid,text,timestamptz,text) from public, authenticated;
-grant execute on function operations.create_or_get(uuid,text,text,uuid,text,timestamptz,text) to authenticated;
+grant execute on function operations.create_or_get(uuid,uuid,text,text,uuid,text,timestamptz,text) to authenticated;
 
-comment on function operations.create_or_get(uuid,text,text,uuid,text,timestamptz,text) is
+comment on function operations.create_or_get(uuid,uuid,text,text,uuid,text,timestamptz,text) is
   'Atomically creates or resolves the canonical tenant-scoped operation identity after validating the supplied tenant against authenticated context. Reusing a key with different immutable request identity fails closed. Does not authorize or execute.';
