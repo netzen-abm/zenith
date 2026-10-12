@@ -14,10 +14,10 @@ Repeated delivery of one logical request must resolve to one persisted operation
 
 ## Required order
 1. Validate the domain request.
-2. Persist/resolve the idempotent operation identity.
-3. Persist or retrieve the minimal domain payload under an immutable query identity.
-4. Apply canonical Core authorization.
-5. Reserve the canonical operation ID.
+2. Perform the existing Core authorization preflight; denied requests must not create operations or persist payloads.
+3. Atomically create/resolve the idempotent operation identity.
+4. Persist or retrieve the minimal domain payload under an immutable, tenant-scoped query identity.
+5. Reserve the canonical operation ID; PostgreSQL reservation performs the authoritative execution-time Core policy recheck.
 6. Invoke the handler only after successful reservation.
 7. Record the outcome atomically with lifecycle and outbox.
 
