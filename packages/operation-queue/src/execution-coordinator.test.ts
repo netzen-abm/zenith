@@ -160,3 +160,31 @@ assert.deepEqual(ambiguousRetry, {
   decision: 'deny_reservation',
 });
 assert.equal(providerEffects, 1, 'ambiguous operation must not blindly replay');
+
+// A handler exception is ambiguous: an external side effect may have occurred.
+// Persist a conflict outcome before surfacing the original error to the caller.
+const handlerFailureOutcomes: Array<{ outcome: string; errorCode?: string }> = [];
+const handlerFailureCoordinator = new ExecutionCoordinator(
+  authorization,
+  { reserve: async () => ({ allowed: true, decision: 'allow', attemptCount: 3 }) },
+  async () => {
+    throw new Error('simulated_handler_failure');
+  },
+  {
+    async record(_operation, outcome) {
+      handlerFailureOutcomes.push({
+        outcome: outcome.outcome,
+        errorCode: outcome.errorCode,
+      });
+      return { recorded: true, decision: 'recorded' };
+    },
+  },
+);
+await assert.rejects(
+  () => handlerFailureCoordinator.execute(operation),
+  /simulated_handler_failure/,
+);
+assert.deepEqual(handlerFailureOutcomes, [{
+  outcome: 'conflict',
+  errorCode: 'handler_outcome_unknown',
+}]);
