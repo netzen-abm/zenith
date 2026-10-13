@@ -27,17 +27,8 @@ export class SpaceTimeOperation {
   constructor(repository: SpaceTimeRequestRepository, context: SpaceTimeExecutionContext) {
     this.repository = repository;
     this.context = context;
-    // The canonical policy boundary accepts generic write intent; retain the
-    // domain action for operation identity, persistence, audit, and mutation.
-    const authorization: ExecutionAuthorization = {
-      authorize: operation => context.authorization.authorize(
-        operation.action === 'space_time.spatial_representation_create'
-          ? { ...operation, action: 'write' }
-          : operation,
-      ),
-    };
     this.coordinator = new ExecutionCoordinator(
-      authorization, context.reservation,
+      context.authorization, context.reservation,
       operation => this.handle(operation), context.outcomeRecorder,
     );
   }
