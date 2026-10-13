@@ -46,7 +46,7 @@ create or replace function operations.create_or_get_with_payload_hash(
   p_expires_at timestamptz,
   p_resource_id uuid,
   p_payload_ref text,
-  p_payload_hash text
+  p_payload_identity jsonb
 )
 returns table (
   created boolean,
@@ -70,6 +70,7 @@ set search_path = ''
 as $function$
 declare
   v_operation operations.operations%rowtype;
+  v_payload_hash text;
 begin
   if p_operation_id is null
      or p_idempotency_key is null or btrim(p_idempotency_key) = ''
@@ -79,11 +80,18 @@ begin
      or p_identity_id is distinct from core.current_identity_id()
      or p_organisation_id is distinct from core.current_organisation_id()
      or core.current_organisation_id() is null
-     or p_payload_hash is null or p_payload_hash !~ '^[0-9a-f]{64}$'
      or p_resource_id is null
-     or p_payload_ref is null or btrim(p_payload_ref) = '' then
+     or p_payload_ref is null or btrim(p_payload_ref) = ''
+     or p_payload_identity is null or jsonb_typeof(p_payload_identity) <> 'object'
+     or p_payload_identity->>'action' is distinct from p_action
+     or p_payload_identity->>'organisationId' is distinct from p_organisation_id::text
+     or p_payload_identity->>'identityId' is distinct from p_identity_id::text
+     or p_payload_identity->>'purpose' is distinct from p_purpose
+     or p_payload_identity->>'resourceId' is distinct from p_resource_id::text then
     raise exception 'operation_create_invalid_context';
   end if;
+
+  v_payload_hash := encode(digest(convert_to(p_payload_identity::text, 'UTF8'), 'sha256'), 'hex');
 
   perform pg_advisory_xact_lock(hashtextextended(
     core.current_organisation_id()::text || ':' || p_idempotency_key, 0
@@ -100,7 +108,7 @@ begin
        or v_operation.identity_id is distinct from p_identity_id
        or v_operation.purpose is distinct from p_purpose
        or v_operation.resource_id is distinct from p_resource_id
-       or v_operation.payload_hash is distinct from p_payload_hash then
+       or v_operation.payload_hash is distinct from v_payload_hash then
       raise exception 'operation_idempotency_conflict';
     end if;
     return query select false, v_operation.id, v_operation.organisation_id,
@@ -121,7 +129,7 @@ begin
   ) values (
     p_operation_id, p_organisation_id, p_identity_id, p_idempotency_key, p_action,
     p_resource_id, p_purpose, 'created', clock_timestamp(), p_expires_at, 0,
-    p_payload_ref, p_payload_hash
+    p_payload_ref, v_payload_hash
   ) returning * into v_operation;
 
   return query select true, v_operation.id, v_operation.organisation_id,
@@ -132,8 +140,8 @@ begin
 end
 $function$;
 
-revoke all on function operations.create_or_get_with_payload_hash(uuid,uuid,text,text,uuid,text,timestamptz,uuid,text,text) from public, anon;
-grant execute on function operations.create_or_get_with_payload_hash(uuid,uuid,text,text,uuid,text,timestamptz,uuid,text,text) to authenticated;
+revoke all on function operations.create_or_get_with_payload_hash(uuid,uuid,text,text,uuid,text,timestamptz,uuid,text,jsonb) from public, anon;
+grant execute on function operations.create_or_get_with_payload_hash(uuid,uuid,text,text,uuid,text,timestamptz,uuid,text,jsonb) to authenticated;
 
-comment on function operations.create_or_get_with_payload_hash(uuid,uuid,text,text,uuid,text,timestamptz,uuid,text,text) is
-  'Canonical tenant-scoped Space-Time operation resolver. Serializes idempotency-key creation and rejects reuse with a different resource or SHA-256 payload identity.';
+comment on function operations.create_or_get_with_payload_hash(uuid,uuid,text,text,uuid,text,timestamptz,uuid,text,jsonb) is
+  'Canonical tenant-scoped Space-Time operation resolver. Computes SHA-256 from JSONB payload identity inside PostgreSQL, serializes idempotency-key creation, and rejects changed resource or payload identity.';
