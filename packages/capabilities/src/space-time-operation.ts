@@ -105,6 +105,28 @@ export class SpaceTimeOperation {
     if (priorOutcome?.outcome === 'acknowledged' && priorOutcome.resultRef) {
       return { ...canonicalOperation, state: 'acknowledged', resultRef: priorOutcome.resultRef };
     }
+
+    // If the mutation committed but outcome recording was interrupted, reservation
+    // correctly denies a second execution. Reconcile only from the read-only
+    // durable receipt; never call the mutation handler from this recovery path.
+    if (!priorOutcome && result.decision === 'deny_reservation' && canonicalOperation.payloadRef) {
+      const receipt = await this.repository.getConsumedReceipt(canonicalOperation.payloadRef);
+      if (receipt) {
+        const durable = await this.context.outcomeRecorder.record(
+          { ...canonicalOperation, attemptCount: canonicalOperation.attemptCount ?? 1 },
+          { outcome: 'acknowledged', resultRef: receipt },
+        );
+        if (!durable.recorded) {
+          throw new Error(`space_time_recovery_outcome_not_durable:${durable.decision}`);
+        }
+        const recoveredOutcome = await this.repository.getOutcome(canonicalOperation.operationId);
+        if (recoveredOutcome?.outcome !== 'acknowledged' || !recoveredOutcome.resultRef) {
+          throw new Error('space_time_recovered_outcome_unavailable');
+        }
+        return { ...canonicalOperation, state: 'acknowledged', resultRef: recoveredOutcome.resultRef };
+      }
+    }
+
     throw new Error(`space_time_not_executed:${result.decision}`);
   }
 
