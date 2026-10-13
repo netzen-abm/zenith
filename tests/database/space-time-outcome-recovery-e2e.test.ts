@@ -53,7 +53,7 @@ select set_config('app.organisation_id','${organisationId}',true);
     }
     const output = await psql(context + `select row_to_json(q)::text from (${statement}) q;
 commit;`);
-    return output.split('\\n').filter(Boolean).map(line => JSON.parse(line)) as T[];
+    return output.split('\\n').filter(line => line.startsWith('{')).map(line => JSON.parse(line)) as T[];
   },
 };
 
@@ -91,6 +91,17 @@ on conflict (id) do nothing;
 insert into core.resource_memberships(resource_id,identity_id,membership_role)
 values ('${resourceId}','${identityId}','owner')
 on conflict (resource_id,identity_id) do nothing;
+`);
+
+await psql(`
+delete from operations.execution_outbox
+ where operation_id in (select id from operations.operations where organisation_id = '${organisationId}' and idempotency_key = '${idempotencyKey}');
+delete from operations.execution_outcomes
+ where operation_id in (select id from operations.operations where organisation_id = '${organisationId}' and idempotency_key = '${idempotencyKey}');
+delete from core.space_time_representation_requests
+ where organisation_id = '${organisationId}' and identity_id = '${identityId}' and resource_id = '${resourceId}';
+delete from core.spatial_representations where resource_id = '${resourceId}';
+delete from operations.operations where organisation_id = '${organisationId}' and idempotency_key = '${idempotencyKey}';
 `);
 
 const spaceTime = new SpaceTimeOperation(repository, {
