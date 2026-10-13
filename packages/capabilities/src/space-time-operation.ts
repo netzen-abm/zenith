@@ -63,7 +63,6 @@ export class SpaceTimeOperation {
       expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       attemptCount: 0,
       payloadRef: requestId,
-      contentHash: undefined,
     };
 
     let canonicalOperation = operation;
