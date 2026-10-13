@@ -50,9 +50,16 @@ select set_config('app.organisation_id','${organisationId}',true);
       const id = output.split('\\n').filter(Boolean).at(-1);
       return id ? [{ id }] as T[] : [];
     }
-    const output = await psql(context + `select row_to_json(q)::text from (${statement}) q;
+    const output = await psql(context + `select 'ZENITH_JSON:' || row_to_json(q)::text from (${statement}) q;
 commit;`);
-    return output.split('\\n').map(line => line.trim()).filter(line => line.startsWith('{')).map(line => JSON.parse(line)) as T[];
+    const rows = output.split('\\n')
+      .map(line => line.trim())
+      .filter(line => line.includes('ZENITH_JSON:'))
+      .map(line => JSON.parse(line.slice(line.indexOf('ZENITH_JSON:') + 'ZENITH_JSON:'.length))) as T[];
+    if (statement.includes('create_or_get_with_payload_hash') && rows.length === 0) {
+      throw new Error(`space_time_e2e_operation_resolution_returned_no_rows:${output}`);
+    }
+    return rows;
   },
 };
 
