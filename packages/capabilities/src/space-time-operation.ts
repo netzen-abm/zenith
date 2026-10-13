@@ -105,6 +105,9 @@ export class SpaceTimeOperation {
         canonicalOperation.payloadRef,
         hash,
       );
+      if (canonicalOperation.state === 'created' || canonicalOperation.state === 'authorized') {
+        canonicalOperation = { ...canonicalOperation, state: 'queued' };
+      }
       return canonicalOperation;
     });
 
