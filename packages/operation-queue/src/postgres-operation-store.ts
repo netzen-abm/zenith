@@ -51,6 +51,7 @@ export class PostgresOperationStore implements OperationStore {
         operationId: row.operation_id,
         idempotencyKey: row.idempotency_key,
         action: row.action,
+        ...(input.resourceId ? { resourceId: input.resourceId } : {}),
         organisationId: row.organisation_id,
         identityId: row.identity_id,
         purpose: row.purpose,
