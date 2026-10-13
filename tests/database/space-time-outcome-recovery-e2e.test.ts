@@ -52,7 +52,7 @@ select set_config('app.organisation_id','${organisationId}',true);
     }
     const output = await psql(context + `select row_to_json(q)::text from (${statement}) q;
 commit;`);
-    return output.split('\\n').filter(line => line.startsWith('{')).map(line => JSON.parse(line)) as T[];
+    return output.split('\\n').map(line => line.trim()).filter(line => line.startsWith('{')).map(line => JSON.parse(line)) as T[];
   },
 };
 
