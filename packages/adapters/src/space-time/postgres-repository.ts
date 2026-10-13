@@ -36,25 +36,21 @@ export class PostgresSpaceTimeRequestRepository implements SpaceTimeRequestRepos
       );
       if (!rows[0]) throw new Error('space_time_request_payload_conflict');
 
-      // A previously created operation may have been interrupted before its
-      // request row was persisted. Repair that row on retry, then advance only
-      // operations still in the initial state.
-      if (operation.state === 'created') {
-        const authorized = await db.query<{ decision: string }>(
-          "select decision from operations.transition($1,'created','authorized')",
-          [operation.operationId],
-        );
-        if (authorized[0]?.decision === 'allow') {
-          await db.query("select operations.transition($1,'authorized','queued')", [operation.operationId]);
-        } else {
-          const state = await db.query<{ state: string }>(
-            'select state from operations.operations where id = $1::uuid',
-            [operation.operationId],
-          );
-          if (state[0]?.state === 'authorized') {
-            await db.query("select operations.transition($1,'authorized','queued')", [operation.operationId]);
-          }
-        }
+      // Serialize lifecycle repair for an operation that was created but whose
+      // request row was not persisted before a process interruption.
+      await db.query(
+        'select pg_advisory_xact_lock(hashtextextended($1::text, 0))',
+        [operation.operationId],
+      );
+      const state = await db.query<{ state: string }>(
+        'select state from operations.operations where id = $1::uuid',
+        [operation.operationId],
+      );
+      if (state[0]?.state === 'created') {
+        await db.query("select operations.transition($1,'created','authorized')", [operation.operationId]);
+        await db.query("select operations.transition($1,'authorized','queued')", [operation.operationId]);
+      } else if (state[0]?.state === 'authorized') {
+        await db.query("select operations.transition($1,'authorized','queued')", [operation.operationId]);
       }
     });
   }
