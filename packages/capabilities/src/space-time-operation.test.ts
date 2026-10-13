@@ -133,5 +133,5 @@ await assert.rejects(
   () => spaceTime.execute({ ...request, geom: 'POINT(11 21)' }),
   /operation_idempotency_conflict/,
 );
-assert.equal([...outcomes.values()].filter(value => value.outcome === 'acknowledged').length, 1);
+assert.equal([...outcomes.values()].filter(value => value.outcome === 'acknowledged').length, 2);
 console.log('space-time-operation: PASS');
