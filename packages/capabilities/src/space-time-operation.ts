@@ -111,10 +111,16 @@ export class SpaceTimeOperation {
       return canonicalOperation;
     });
 
-    if (result.executed) return canonicalOperation;
+    if (result.executed) {
+      const completedOutcome = await this.repository.getOutcome(canonicalOperation.operationId);
+      if (completedOutcome?.outcome !== 'acknowledged' || !completedOutcome.resultRef) {
+        throw new Error('space_time_outcome_unavailable_after_execution');
+      }
+      return { ...canonicalOperation, state: 'acknowledged', resultRef: completedOutcome.resultRef };
+    }
     const priorOutcome = await this.repository.getOutcome(canonicalOperation.operationId);
     if (priorOutcome?.outcome === 'acknowledged' && priorOutcome.resultRef) {
-      return { ...canonicalOperation, resultRef: priorOutcome.resultRef };
+      return { ...canonicalOperation, state: 'acknowledged', resultRef: priorOutcome.resultRef };
     }
     throw new Error(`space_time_not_executed:${result.decision}`);
   }
