@@ -59,6 +59,7 @@ done
 "${PSQL[@]}" -f "$ROOT_DIR/tests/database/knowledge-graph-assertions.sql"
 "${PSQL[@]}" -f "$ROOT_DIR/tests/database/space-time-assertions.sql"
 "${PSQL[@]}" -f "$ROOT_DIR/tests/database/space-time-idempotency-assertions.sql"
+DATABASE_URL="$DATABASE_URL" bash "$ROOT_DIR/tests/database/space-time-idempotency-concurrency.sh"
 "${PSQL[@]}" -f "$ROOT_DIR/tests/database/research-assertions.sql"
 "${PSQL[@]}" -f "$ROOT_DIR/tests/database/evidence-annotation-assertions.sql"
 "${PSQL[@]}" -f "$ROOT_DIR/tests/database/identity-organisation-context-assertions.sql"
