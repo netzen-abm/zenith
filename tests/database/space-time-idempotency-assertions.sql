@@ -108,5 +108,57 @@ begin
   end;
 end $$;
 
+-- Ambiguous post-mutation retry safety: consume the same durable request twice.
+-- The first call creates exactly one representation; the second must fail closed
+-- because the request is already consumed, even if the caller lost the first reply.
+do $
+declare
+  first_mutation record;
+  retry_mutation record;
+  representation_count integer;
+begin
+  insert into core.space_time_representation_requests(
+    id, organisation_id, identity_id, resource_id, representation_type, geom,
+    precision_level, coordinate_confidence, source_evidence_id, payload_hash
+  ) values (
+    '00000000-0000-0000-0000-0000000002f7',
+    '00000000-0000-0000-0000-0000000002b1',
+    '00000000-0000-0000-0000-0000000002b2',
+    '00000000-0000-0000-0000-0000000002d2',
+    'point', ST_GeomFromText('POINT(10 20)',4326), 'generalized', 0.8, null,
+    encode(public.digest(convert_to(jsonb_build_object(
+      'action','space_time.spatial_representation_create',
+      'organisationId','00000000-0000-0000-0000-0000000002b1',
+      'identityId','00000000-0000-0000-0000-0000000002b2',
+      'purpose','integration-test',
+      'resourceId','00000000-0000-0000-0000-0000000002d2',
+      'representationType','point',
+      'geom','POINT(10 20)',
+      'precisionLevel','generalized',
+      'coordinateConfidence',0.8,
+      'sourceEvidenceId',null
+    )::text,'UTF8'),'sha256'),'hex')
+  );
+
+  select * into first_mutation
+    from core_private.consume_space_time_representation_request('00000000-0000-0000-0000-0000000002f7');
+  if first_mutation.decision <> 'created' or first_mutation.representation_id is null then
+    raise exception 'first Space-Time mutation did not create a representation';
+  end if;
+
+  select * into retry_mutation
+    from core_private.consume_space_time_representation_request('00000000-0000-0000-0000-0000000002f7');
+  if retry_mutation.decision <> 'request_not_pending' then
+    raise exception 'consumed Space-Time request was not rejected on retry';
+  end if;
+
+  select count(*) into representation_count
+    from core.spatial_representations
+   where resource_id = '00000000-0000-0000-0000-0000000002d2';
+  if representation_count <> 1 then
+    raise exception 'ambiguous retry created duplicate spatial representations: %', representation_count;
+  end if;
+end $;
+
 rollback;
 select 'space-time-idempotency-assertions: PASS' as result;
