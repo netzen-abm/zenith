@@ -60,7 +60,18 @@ begin
     clock_timestamp() + interval '1 hour',
     '00000000-0000-0000-0000-0000000002d2',
     '00000000-0000-0000-0000-0000000002f4',
-    repeat('a',64)
+    jsonb_build_object(
+      'action','space_time.spatial_representation_create',
+      'organisationId','00000000-0000-0000-0000-0000000002b1',
+      'identityId','00000000-0000-0000-0000-0000000002b2',
+      'purpose','integration-test',
+      'resourceId','00000000-0000-0000-0000-0000000002d2',
+      'representationType','point',
+      'geom','POINT(10 20)',
+      'precisionLevel','generalized',
+      'coordinateConfidence',0.8,
+      'sourceEvidenceId',null
+    )
   );
   if replay_result.created or replay_result.operation_id <> first_result.operation_id then
     raise exception 'same key and payload did not resolve to canonical operation';
