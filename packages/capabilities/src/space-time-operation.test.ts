@@ -115,10 +115,16 @@ await assert.rejects(
 );
 const interruptedOperation = operations.get(interruptedRequest.idempotencyKey)!;
 assert.equal(interruptedOperation.state, 'in_flight');
+const consumeCallsBeforeRecovery = calls.filter(sql => sql.includes('consume_space_time_representation_request')).length;
 const recovered = await spaceTime.execute(interruptedRequest);
 assert.equal(recovered.state, 'acknowledged');
 assert.equal(recovered.resultRef, 'spatial-1');
 assert.equal(interruptedOperation.attemptCount, 1);
+assert.equal(
+  calls.filter(sql => sql.includes('consume_space_time_representation_request')).length,
+  consumeCallsBeforeRecovery,
+  'receipt recovery must not re-enter the mutation handler',
+);
 
 await assert.rejects(
   () => spaceTime.execute({ ...request, geom: 'POINT(11 21)' }),
