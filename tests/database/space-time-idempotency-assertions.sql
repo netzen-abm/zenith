@@ -111,7 +111,7 @@ end $$;
 -- Ambiguous post-mutation retry safety: consume the same durable request twice.
 -- The first call creates exactly one representation; the second must fail closed
 -- because the request is already consumed, even if the caller lost the first reply.
-do $
+do $ambiguous_retry$
 declare
   first_mutation record;
   retry_mutation record;
@@ -158,7 +158,7 @@ begin
   if representation_count <> 1 then
     raise exception 'ambiguous retry created duplicate spatial representations: %', representation_count;
   end if;
-end $;
+end $ambiguous_retry$;
 
 rollback;
 select 'space-time-idempotency-assertions: PASS' as result;
