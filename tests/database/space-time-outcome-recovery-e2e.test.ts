@@ -85,8 +85,8 @@ on conflict (id) do nothing;
 insert into core.identity_organisation_memberships(identity_id,organisation_id,membership_role)
 values ('${identityId}','${organisationId}','member')
 on conflict (identity_id,organisation_id) do nothing;
-insert into core.resources(id,organisation_id,resource_type,title,epistemic_status,sensitivity,created_by)
-values ('${resourceId}','${organisationId}','site','Space-Time Recovery Resource','documented','public','${identityId}')
+insert into core.resources(id,organisation_id,resource_type,title,epistemic_status,sensitivity)
+values ('${resourceId}','${organisationId}','site','Space-Time Recovery Resource','documented','public')
 on conflict (id) do nothing;
 insert into core.resource_memberships(resource_id,identity_id,membership_role)
 values ('${resourceId}','${identityId}','owner')
