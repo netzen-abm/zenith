@@ -9,8 +9,8 @@ export type CreateOrGetOperationInput = {
   purpose: string;
   expiresAt: string;
   payloadRef?: string;
-  /** Canonical lowercase SHA-256 hash for domains that require payload equivalence. */
-  payloadHash?: string;
+  /** Structured immutable request identity; PostgreSQL computes its canonical SHA-256 hash. */
+  payloadIdentity?: Record<string, unknown>;
   resourceId?: string;
 };
 
