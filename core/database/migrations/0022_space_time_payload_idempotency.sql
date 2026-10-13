@@ -91,7 +91,7 @@ begin
     raise exception 'operation_create_invalid_context';
   end if;
 
-  v_payload_hash := encode(digest(convert_to(p_payload_identity::text, 'UTF8'), 'sha256'), 'hex');
+  v_payload_hash := encode(public.digest(convert_to(p_payload_identity::text, 'UTF8'), 'sha256'), 'hex');
 
   perform pg_advisory_xact_lock(hashtextextended(
     core.current_organisation_id()::text || ':' || p_idempotency_key, 0
