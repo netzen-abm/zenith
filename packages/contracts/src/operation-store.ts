@@ -9,12 +9,15 @@ export type CreateOrGetOperationInput = {
   purpose: string;
   expiresAt: string;
   payloadRef?: string;
+  /** Canonical lowercase SHA-256 hash for domains that require payload equivalence. */
+  payloadHash?: string;
+  resourceId?: string;
 };
 
 export type CreateOrGetOperationResult = {
   created: boolean;
   operation: OperationEnvelope;
-}
+};
 
 /** Persistence contract only; it does not authorize or execute operations. */
 export interface OperationStore {
