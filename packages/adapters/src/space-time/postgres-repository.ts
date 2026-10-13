@@ -70,7 +70,7 @@ export class PostgresSpaceTimeRequestRepository implements SpaceTimeRequestRepos
   }
 
   async getOutcome(operationId: string): Promise<{ outcome: string; resultRef?: string; resultHash?: string } | undefined> {
-    const rows = await this.db.query<{
+    const rows = await this.db.transaction(db => db.query<{
       outcome: string;
       result_ref: string | null;
       result_hash: string | null;
@@ -81,7 +81,7 @@ export class PostgresSpaceTimeRequestRepository implements SpaceTimeRequestRepos
         order by eo.attempt_count desc
         limit 1`,
       [operationId],
-    );
+    ));
     const row = rows[0];
     return row ? {
       outcome: row.outcome,
