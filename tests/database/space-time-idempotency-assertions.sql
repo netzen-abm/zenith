@@ -33,7 +33,18 @@ begin
     clock_timestamp() + interval '1 hour',
     '00000000-0000-0000-0000-0000000002d2',
     '00000000-0000-0000-0000-0000000002f2',
-    repeat('a',64)
+    jsonb_build_object(
+      'action','space_time.spatial_representation_create',
+      'organisationId','00000000-0000-0000-0000-0000000002b1',
+      'identityId','00000000-0000-0000-0000-0000000002b2',
+      'purpose','integration-test',
+      'resourceId','00000000-0000-0000-0000-0000000002d2',
+      'representationType','point',
+      'geom','POINT(10 20)',
+      'precisionLevel','generalized',
+      'coordinateConfidence',0.8,
+      'sourceEvidenceId',null
+    )
   );
   if not first_result.created or first_result.operation_id <> '00000000-0000-0000-0000-0000000002f1' then
     raise exception 'first idempotent operation was not created';
@@ -66,7 +77,18 @@ begin
       clock_timestamp() + interval '1 hour',
       '00000000-0000-0000-0000-0000000002d2',
       '00000000-0000-0000-0000-0000000002f6',
-      repeat('b',64)
+      jsonb_build_object(
+      'action','space_time.spatial_representation_create',
+      'organisationId','00000000-0000-0000-0000-0000000002b1',
+      'identityId','00000000-0000-0000-0000-0000000002b2',
+      'purpose','integration-test',
+      'resourceId','00000000-0000-0000-0000-0000000002d2',
+      'representationType','point',
+      'geom','POINT(11 21)',
+      'precisionLevel','generalized',
+      'coordinateConfidence',0.8,
+      'sourceEvidenceId',null
+    )
     );
     raise exception 'changed payload unexpectedly reused idempotency key';
   exception when others then
