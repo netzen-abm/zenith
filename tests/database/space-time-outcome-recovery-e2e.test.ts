@@ -21,7 +21,7 @@ const idempotencyKey = 'space-time-outcome-recovery-e2e';
 
 async function psql(sql: string): Promise<string> {
   const result = await execFileAsync('psql', [
-    '--dbname', dbUrl, '-v', 'ON_ERROR_STOP=1', '-X', '-At', '-F', '\\t', '-c', sql,
+    '--dbname', dbUrl, '-v', 'ON_ERROR_STOP=1', '-X', '-qAt', '-F', '\\t', '-c', sql,
   ]);
   return result.stdout.trim();
 }
