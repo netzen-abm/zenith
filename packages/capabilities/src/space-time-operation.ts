@@ -21,7 +21,12 @@ export type SpaceTimeExecutionContext = {
 
 export class SpaceTimeOperation {
   private readonly coordinator: ExecutionCoordinator;
-  constructor(private readonly repository: SpaceTimeRequestRepository, private readonly context: SpaceTimeExecutionContext) {
+  private readonly repository: SpaceTimeRequestRepository;
+  private readonly context: SpaceTimeExecutionContext;
+
+  constructor(repository: SpaceTimeRequestRepository, context: SpaceTimeExecutionContext) {
+    this.repository = repository;
+    this.context = context;
     // The canonical policy boundary accepts generic write intent; retain the
     // domain action for operation identity, persistence, audit, and mutation.
     const authorization: ExecutionAuthorization = {
