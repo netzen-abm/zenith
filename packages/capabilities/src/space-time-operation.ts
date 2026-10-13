@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import type { OperationEnvelope } from '../../contracts/src/operation.ts';
 import type { OperationStore } from '../../contracts/src/operation-store.ts';
 import { ExecutionCoordinator, type ExecutionAuthorization, type ExecutionOutcomeRecorder, type ExecutionReservation } from '../../operation-queue/src/execution-coordinator.ts';
@@ -18,26 +18,6 @@ export type SpaceTimeExecutionContext = {
   operationStore: OperationStore;
 };
 
-function canonicalize(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonicalize);
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
-        .filter(([, child]) => child !== undefined)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([key, child]) => [key, canonicalize(child)]),
-    );
-  }
-  if (typeof value === 'number' && !Number.isFinite(value)) {
-    throw new Error('space_time_payload_non_finite_number');
-  }
-  return value === undefined ? null : value;
-}
-
-function payloadHash(value: unknown): string {
-  const canonical = JSON.stringify(canonicalize(value));
-  return createHash('sha256').update(canonical).digest('hex');
-}
 
 export class SpaceTimeOperation {
   private readonly coordinator: ExecutionCoordinator;
@@ -55,18 +35,21 @@ export class SpaceTimeOperation {
     const requestId = randomUUID();
     const representation = { ...request, id: requestId };
     validateSpatialRepresentation(representation);
-    const hash = payloadHash({
+    if (representation.geom !== undefined && representation.geom !== null && typeof representation.geom !== 'string') {
+      throw new Error('space_time_geometry_must_be_text');
+    }
+    const payloadIdentity = {
       action: 'space_time.spatial_representation_create',
-      organisationId: this.context.organisationId,
-      identityId: this.context.identityId,
+      organisationId: this.context.organisationId.toLowerCase(),
+      identityId: this.context.identityId.toLowerCase(),
       purpose: this.context.purpose,
-      resourceId: representation.resourceId,
+      resourceId: representation.resourceId.toLowerCase(),
       representationType: representation.representationType,
       geom: representation.geom ?? null,
       precisionLevel: representation.precisionLevel,
       coordinateConfidence: representation.coordinateConfidence ?? null,
-      sourceEvidenceId: representation.sourceEvidenceId ?? null,
-    });
+      sourceEvidenceId: representation.sourceEvidenceId?.toLowerCase() ?? null,
+    };
     const operation: OperationEnvelope = {
       operationId: randomUUID(),
       idempotencyKey: request.idempotencyKey.trim(),
@@ -80,7 +63,7 @@ export class SpaceTimeOperation {
       expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       attemptCount: 0,
       payloadRef: requestId,
-      contentHash: hash,
+      contentHash: undefined,
     };
 
     let canonicalOperation = operation;
@@ -95,15 +78,16 @@ export class SpaceTimeOperation {
         expiresAt: candidate.expiresAt!,
         resourceId: representation.resourceId,
         payloadRef: candidate.payloadRef,
-        payloadHash: hash,
+        payloadIdentity,
       });
       canonicalOperation = resolved.operation;
       if (!canonicalOperation.payloadRef) throw new Error('space_time_canonical_payload_ref_missing');
+      if (!canonicalOperation.contentHash) throw new Error('space_time_payload_hash_missing');
       await this.repository.saveRequest(
         canonicalOperation,
         representation,
         canonicalOperation.payloadRef,
-        hash,
+        canonicalOperation.contentHash,
       );
       if (canonicalOperation.state === 'created' || canonicalOperation.state === 'authorized') {
         canonicalOperation = { ...canonicalOperation, state: 'queued' };
