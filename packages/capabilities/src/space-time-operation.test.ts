@@ -51,11 +51,11 @@ const context = {
     createOrGet: async (input: {
       operationId: string; idempotencyKey: string; action: string; organisationId: string;
       identityId: string; purpose: string; expiresAt: string; payloadRef?: string;
-      payloadHash?: string; resourceId?: string;
+      payloadIdentity?: Record<string, unknown>; resourceId?: string;
     }) => {
       const existing = operations.get(input.idempotencyKey);
       if (existing) {
-        if (existing.contentHash !== input.payloadHash || existing.resourceId !== input.resourceId) {
+        if (existing.contentHash !== JSON.stringify(input.payloadIdentity) || existing.resourceId !== input.resourceId) {
           throw new Error('operation_idempotency_conflict');
         }
         return { created: false, operation: existing };
@@ -65,7 +65,7 @@ const context = {
         organisationId: input.organisationId, identityId: input.identityId, purpose: input.purpose,
         resourceId: input.resourceId, state: 'created', createdAt: new Date().toISOString(),
         expiresAt: input.expiresAt, attemptCount: 0, payloadRef: input.payloadRef,
-        contentHash: input.payloadHash,
+        contentHash: JSON.stringify(input.payloadIdentity),
       };
       operations.set(input.idempotencyKey, operation);
       return { created: true, operation };
