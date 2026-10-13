@@ -22,7 +22,7 @@ export class PostgresSpaceTimeRequestRepository implements SpaceTimeRequestRepos
     await this.db.transaction(async db => {
       const rows = await db.query<{ id: string }>(
         `with canonical_payload as (
-          select encode(digest(convert_to(jsonb_build_object(
+          select encode(public.digest(convert_to(jsonb_build_object(
             'action', 'space_time.spatial_representation_create',
             'organisationId', $2::uuid::text,
             'identityId', $3::uuid::text,
