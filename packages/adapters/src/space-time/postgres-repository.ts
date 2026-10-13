@@ -83,6 +83,22 @@ export class PostgresSpaceTimeRequestRepository implements SpaceTimeRequestRepos
     return { representationId: String(result.representation_id), decision: String(result.decision) };
   }
 
+  async getConsumedReceipt(payloadRef: string): Promise<string | undefined> {
+    const rows = await this.db.transaction(db => db.query<{
+      representation_id: string | null;
+    }>(
+      `select representation_id
+         from core.space_time_representation_requests
+        where id = $1::uuid
+          and organisation_id = core.current_organisation_id()
+          and identity_id = core.current_identity_id()
+          and status = 'consumed'`,
+      [payloadRef],
+    ));
+    const id = rows[0]?.representation_id;
+    return id == null ? undefined : String(id);
+  }
+
   async getOutcome(operationId: string): Promise<{ outcome: string; resultRef?: string; resultHash?: string } | undefined> {
     const rows = await this.db.transaction(db => db.query<{
       outcome: string;
