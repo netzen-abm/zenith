@@ -1,5 +1,5 @@
 import type { OperationEnvelope } from '../../../contracts/src/operation.ts';
-import type { SpaceTimeRequestRepository } from '../../../capabilities/src/space-time/repository.ts';
+import type { SpaceTimeRequestRepository, SpaceTimeRepresentationPayload } from '../../../capabilities/src/space-time/repository.ts';
 
 type Db = {
   query<T extends Record<string, unknown>>(sql: string, params: readonly unknown[]): Promise<T[]>;
@@ -10,35 +10,52 @@ export class PostgresSpaceTimeRequestRepository implements SpaceTimeRequestRepos
   constructor(private readonly db: Store) {}
 
   async saveRequest(
-    operation: Pick<OperationEnvelope, 'operationId' | 'idempotencyKey' | 'action' | 'resourceId' | 'organisationId' | 'identityId' | 'purpose' | 'payloadRef'>,
-    representation: {
-      resourceId: string;
-      representationType: string;
-      geom?: unknown;
-      precisionLevel: string;
-      coordinateConfidence?: number;
-      sourceEvidenceId?: string;
-    },
+    operation: OperationEnvelope,
+    representation: SpaceTimeRepresentationPayload,
     requestId: string,
+    payloadHash: string,
   ): Promise<void> {
+    if (!operation.operationId || !operation.organisationId || !operation.identityId ||
+        !operation.resourceId || !operation.payloadRef || operation.payloadRef !== requestId) {
+      throw new Error('space_time_canonical_operation_invalid');
+    }
     await this.db.transaction(async db => {
-      await db.query(
-        'insert into core.space_time_representation_requests(id,organisation_id,identity_id,resource_id,representation_type,geom,precision_level,coordinate_confidence,source_evidence_id) values ($1,$2,$3,$4,$5,$6::geometry,$7,$8,$9)',
+      const rows = await db.query<{ id: string }>(
+        `insert into core.space_time_representation_requests(
+          id,organisation_id,identity_id,resource_id,representation_type,geom,
+          precision_level,coordinate_confidence,source_evidence_id,payload_hash
+        ) values ($1,$2,$3,$4,$5,$6::geometry,$7,$8,$9,$10)
+        on conflict (id) do update set id = excluded.id
+          where core.space_time_representation_requests.payload_hash = excluded.payload_hash
+        returning id`,
         [
           requestId, operation.organisationId, operation.identityId, representation.resourceId,
           representation.representationType, representation.geom ?? null, representation.precisionLevel,
-          representation.coordinateConfidence ?? null, representation.sourceEvidenceId ?? null,
+          representation.coordinateConfidence ?? null, representation.sourceEvidenceId ?? null, payloadHash,
         ],
       );
-      await db.query(
-        'insert into operations.operations(id,organisation_id,identity_id,idempotency_key,action,resource_id,purpose,expires_at,payload_ref) values ($1,$2,$3,$4,$5,$6,$7,clock_timestamp()+interval \'1 hour\',$8)',
-        [
-          operation.operationId, operation.organisationId, operation.identityId,
-          operation.idempotencyKey, operation.action, operation.resourceId, operation.purpose, requestId,
-        ],
-      );
-      await db.query('select operations.transition($1,\'created\',\'authorized\')', [operation.operationId]);
-      await db.query('select operations.transition($1,\'authorized\',\'queued\')', [operation.operationId]);
+      if (!rows[0]) throw new Error('space_time_request_payload_conflict');
+
+      // A previously created operation may have been interrupted before its
+      // request row was persisted. Repair that row on retry, then advance only
+      // operations still in the initial state.
+      if (operation.state === 'created') {
+        const authorized = await db.query<{ decision: string }>(
+          "select decision from operations.transition($1,'created','authorized')",
+          [operation.operationId],
+        );
+        if (authorized[0]?.decision === 'allow') {
+          await db.query("select operations.transition($1,'authorized','queued')", [operation.operationId]);
+        } else {
+          const state = await db.query<{ state: string }>(
+            'select state from operations.operations where id = $1::uuid',
+            [operation.operationId],
+          );
+          if (state[0]?.state === 'authorized') {
+            await db.query("select operations.transition($1,'authorized','queued')", [operation.operationId]);
+          }
+        }
+      }
     });
   }
 
@@ -50,5 +67,26 @@ export class PostgresSpaceTimeRequestRepository implements SpaceTimeRequestRepos
     const result = rows[0];
     if (!result) return undefined;
     return { representationId: String(result.representation_id), decision: String(result.decision) };
+  }
+
+  async getOutcome(operationId: string): Promise<{ outcome: string; resultRef?: string; resultHash?: string } | undefined> {
+    const rows = await this.db.query<{
+      outcome: string;
+      result_ref: string | null;
+      result_hash: string | null;
+    }>(
+      `select eo.outcome, eo.result_ref, eo.result_hash
+         from operations.execution_outcomes eo
+        where eo.operation_id = $1::uuid
+        order by eo.attempt_count desc
+        limit 1`,
+      [operationId],
+    );
+    const row = rows[0];
+    return row ? {
+      outcome: row.outcome,
+      ...(row.result_ref == null ? {} : { resultRef: row.result_ref }),
+      ...(row.result_hash == null ? {} : { resultHash: row.result_hash }),
+    } : undefined;
   }
 }
