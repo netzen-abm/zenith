@@ -14,7 +14,10 @@ const db = {
         const [id, , , , , , , , , hash] = params;
         const existing = requestRows.get(String(id));
         if (existing && existing.payloadHash !== hash) return [] as R[];
-        requestRows.set(String(id), { payloadHash: String(hash) });
+        requestRows.set(String(id), {
+          payloadHash: String(hash),
+          ...(existing?.representationId ? { representationId: existing.representationId } : {}),
+        });
         return [{ id: String(id) }] as R[];
       }
       if (sql.includes('select state from operations.operations')) return [{ state: 'created' }] as R[];
