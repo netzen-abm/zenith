@@ -5,7 +5,7 @@ insert into auth.users(id) values ('00000000-0000-0000-0000-0000000002b3') on co
 insert into core.organisations(id,name,slug) values ('00000000-0000-0000-0000-0000000002b1','Space-Time Idempotency Test','space-time-idempotency-test') on conflict do nothing;
 insert into core.identities(id,auth_user_id,display_name) values ('00000000-0000-0000-0000-0000000002b2','00000000-0000-0000-0000-0000000002b3','Space-Time Idempotency Identity') on conflict do nothing;
 insert into core.identity_organisation_memberships(identity_id,organisation_id,membership_role)
-values ('00000000-0000-0000-0000-0000000002b2','00000000-0000-0000-0000000002b1','member')
+values ('00000000-0000-0000-0000-0000000002b2','00000000-0000-0000-0000-0000000002b1','member')
 on conflict do nothing;
 insert into core.resources(id,organisation_id,resource_type,title,epistemic_status,sensitivity)
 values ('00000000-0000-0000-0000-0000000002d2','00000000-0000-0000-0000-0000000002b1','site','Idempotency Resource','documented','public')
