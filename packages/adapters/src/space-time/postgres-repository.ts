@@ -21,10 +21,27 @@ export class PostgresSpaceTimeRequestRepository implements SpaceTimeRequestRepos
     }
     await this.db.transaction(async db => {
       const rows = await db.query<{ id: string }>(
-        `insert into core.space_time_representation_requests(
+        `with canonical_payload as (
+          select encode(digest(convert_to(jsonb_build_object(
+            'action', 'space_time.spatial_representation_create',
+            'organisationId', $2::uuid::text,
+            'identityId', $3::uuid::text,
+            'purpose', $11::text,
+            'resourceId', $4::uuid::text,
+            'representationType', $5::text,
+            'geom', $6::text,
+            'precisionLevel', $7::text,
+            'coordinateConfidence', $8::numeric,
+            'sourceEvidenceId', $9::uuid::text
+          )::text, 'UTF8'), 'sha256'), 'hex') as hash
+        )
+        insert into core.space_time_representation_requests(
           id,organisation_id,identity_id,resource_id,representation_type,geom,
           precision_level,coordinate_confidence,source_evidence_id,payload_hash
-        ) values ($1,$2,$3,$4,$5,$6::geometry,$7,$8,$9,$10)
+        )
+        select $1,$2,$3,$4,$5,$6::geometry,$7,$8,$9,canonical_payload.hash
+          from canonical_payload
+         where canonical_payload.hash = $10
         on conflict (id) do update set id = excluded.id
           where core.space_time_representation_requests.payload_hash = excluded.payload_hash
         returning id`,
@@ -32,6 +49,7 @@ export class PostgresSpaceTimeRequestRepository implements SpaceTimeRequestRepos
           requestId, operation.organisationId, operation.identityId, representation.resourceId,
           representation.representationType, representation.geom ?? null, representation.precisionLevel,
           representation.coordinateConfidence ?? null, representation.sourceEvidenceId ?? null, payloadHash,
+          operation.purpose,
         ],
       );
       if (!rows[0]) throw new Error('space_time_request_payload_conflict');
