@@ -7,7 +7,11 @@ type Db = {
 type Store = { transaction<T>(work: (db: Db) => Promise<T>): Promise<T> };
 
 export class PostgresSpaceTimeRequestRepository implements SpaceTimeRequestRepository {
-  constructor(private readonly db: Store) {}
+  private readonly db: Store;
+
+  constructor(db: Store) {
+    this.db = db;
+  }
 
   async saveRequest(
     operation: OperationEnvelope,
