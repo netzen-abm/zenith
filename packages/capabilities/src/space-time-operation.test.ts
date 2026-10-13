@@ -26,7 +26,10 @@ const db = {
         row.representationId = 'spatial-1';
         return [{ representation_id: 'spatial-1', decision: 'created' }] as R[];
       }
-      if (sql.includes('select eo.outcome')) return [] as R[];
+      if (sql.includes('select eo.outcome')) {
+        const outcome = outcomes.get(String(params[0]));
+        return outcome ? [{ outcome: outcome.outcome, result_ref: outcome.resultRef ?? null, result_hash: null }] as R[] : [] as R[];
+      }
       return [] as R[];
     } }),
 };
@@ -80,7 +83,7 @@ const request = {
   geom: 'POINT(10 20)',
 };
 const first = await spaceTime.execute(request);
-assert.equal(first.state, 'created');
+assert.equal(first.state, 'queued');
 assert.ok(calls.some(sql => sql.includes('consume_space_time_representation_request')));
 assert.ok(!calls.some(sql => /insert into operations\.operations/i.test(sql)));
 assert.ok(!calls.some(sql => /insert into core\.spatial_representations/i.test(sql)));
