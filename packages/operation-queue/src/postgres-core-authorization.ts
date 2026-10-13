@@ -15,9 +15,14 @@ export class PostgresCoreAuthorization implements ExecutionAuthorization {
   }
 
   async authorize(operation: OperationEnvelope): Promise<boolean> {
+    // Domain action names remain stable in the operation ledger; the database
+    // policy boundary currently accepts generic read/write intent.
+    const policyAction = operation.action === 'space_time.spatial_representation_create'
+      ? 'write'
+      : operation.action;
     const rows = await this.db.query<AuthorizationRow>(
       'select allowed, decision from core.authorize_capability($1, $2::uuid, $3)',
-      [operation.action, operation.resourceId ?? null, operation.purpose],
+      [policyAction, operation.resourceId ?? null, operation.purpose],
     );
     const decision = rows[0];
     return decision?.allowed === true && decision.decision === 'allow';
