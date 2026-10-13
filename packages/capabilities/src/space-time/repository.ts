@@ -22,4 +22,5 @@ export type SpaceTimeRequestRepository = {
   getOutcome(operationId: string): Promise<
     { outcome: string; resultRef?: string; resultHash?: string } | undefined
   >;
+  getConsumedReceipt(payloadRef: string): Promise<string | undefined>;
 };
