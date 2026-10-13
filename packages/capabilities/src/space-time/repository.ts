@@ -1,26 +1,25 @@
+import type { OperationEnvelope } from '../../../contracts/src/operation.ts';
+
+export type SpaceTimeRepresentationPayload = {
+  resourceId: string;
+  representationType: string;
+  geom?: unknown;
+  precisionLevel: string;
+  coordinateConfidence?: number;
+  sourceEvidenceId?: string;
+};
+
 export type SpaceTimeRequestRepository = {
   saveRequest(
-    operation: {
-      operationId: string;
-      idempotencyKey: string;
-      action: string;
-      resourceId?: string;
-      organisationId: string;
-      identityId: string;
-      purpose: string;
-      payloadRef: string;
-    },
-    representation: {
-      resourceId: string;
-      representationType: string;
-      geom?: unknown;
-      precisionLevel: string;
-      coordinateConfidence?: number;
-      sourceEvidenceId?: string;
-    },
+    operation: OperationEnvelope,
+    representation: SpaceTimeRepresentationPayload,
     requestId: string,
+    payloadHash: string,
   ): Promise<void>;
   consumeRequest(payloadRef: string): Promise<
     { representationId: string; decision: string } | undefined
+  >;
+  getOutcome(operationId: string): Promise<
+    { outcome: string; resultRef?: string; resultHash?: string } | undefined
   >;
 };

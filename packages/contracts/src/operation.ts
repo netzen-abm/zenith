@@ -18,6 +18,8 @@ export interface OperationEnvelope {
   attemptCount: number;
   payloadRef?: string;
   contentHash?: string;
+  /** Durable handler result reference when returned by an outcome-replay path. */
+  resultRef?: string;
   classification?: string;
   epistemicStatus?: string;
   provenanceRef?: string;
