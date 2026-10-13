@@ -83,7 +83,8 @@ const request = {
   geom: 'POINT(10 20)',
 };
 const first = await spaceTime.execute(request);
-assert.equal(first.state, 'queued');
+assert.equal(first.state, 'acknowledged');
+assert.equal(first.resultRef, 'spatial-1');
 assert.ok(calls.some(sql => sql.includes('consume_space_time_representation_request')));
 assert.ok(!calls.some(sql => /insert into operations\.operations/i.test(sql)));
 assert.ok(!calls.some(sql => /insert into core\.spatial_representations/i.test(sql)));
