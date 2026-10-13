@@ -22,9 +22,13 @@ const db = {
         const id = String(params[0]);
         const row = requestRows.get(id);
         if (!row) return [] as R[];
-        if (row.representationId) return [{ representation_id: row.representationId, decision: 'created' }] as R[];
+        if (row.representationId) return [{ representation_id: row.representationId, decision: 'already_consumed' }] as R[];
         row.representationId = 'spatial-1';
         return [{ representation_id: 'spatial-1', decision: 'created' }] as R[];
+      }
+      if (sql.includes('select representation_id') && sql.includes("status = 'consumed'")) {
+        const row = requestRows.get(String(params[0]));
+        return row?.representationId ? [{ representation_id: row.representationId }] as R[] : [] as R[];
       }
       if (sql.includes('select eo.outcome')) {
         const outcome = outcomes.get(String(params[0]));
@@ -34,15 +38,23 @@ const db = {
     } }),
 };
 const operations = new Map<string, OperationEnvelope & { contentHash?: string }>();
+let failNextOutcomeRecording = false;
 const context = {
   organisationId: 'org-1', identityId: 'identity-1', purpose: 'research',
   authorization: { authorize: async () => true },
   reservation: { reserve: async (id: string) => {
     const operation = [...operations.values()].find(item => item.operationId === id);
-    if (operation?.state === 'acknowledged') return { allowed: false, decision: 'deny_state' };
-    return { allowed: true, decision: 'allow', attemptCount: 1 };
+    if (operation?.state === 'acknowledged' || operation?.state === 'in_flight') {
+      return { allowed: false, decision: 'deny_reservation' };
+    }
+    if (operation) operations.set(operation.idempotencyKey, { ...operation, state: 'in_flight', attemptCount: (operation.attemptCount ?? 0) + 1 });
+    return { allowed: true, decision: 'allow', attemptCount: (operation?.attemptCount ?? 0) + 1 };
   } },
   outcomeRecorder: { record: async (operation: OperationEnvelope, outcome: { outcome: string; resultRef?: string }) => {
+    if (failNextOutcomeRecording) {
+      failNextOutcomeRecording = false;
+      throw new Error('simulated_outcome_persistence_interruption');
+    }
     outcomes.set(operation.operationId, outcome);
     if (operation) operations.set(operation.idempotencyKey, { ...operation, state: outcome.outcome === 'acknowledged' ? 'acknowledged' : 'conflict' });
     return { recorded: true, decision: 'recorded' };
@@ -92,6 +104,21 @@ assert.ok(!calls.some(sql => /insert into core\.spatial_representations/i.test(s
 const replay = await spaceTime.execute(request);
 assert.equal(replay.operationId, first.operationId);
 assert.equal(replay.resultRef, 'spatial-1');
+
+// Simulate mutation commit followed by a failed outcome write. The durable
+// reservation blocks re-execution; recovery must read the mutation receipt.
+const interruptedRequest = { ...request, idempotencyKey: 'field-survey-interrupted-001' };
+failNextOutcomeRecording = true;
+await assert.rejects(
+  () => spaceTime.execute(interruptedRequest),
+  /simulated_outcome_persistence_interruption/,
+);
+const interruptedOperation = operations.get(interruptedRequest.idempotencyKey)!;
+assert.equal(interruptedOperation.state, 'in_flight');
+const recovered = await spaceTime.execute(interruptedRequest);
+assert.equal(recovered.state, 'acknowledged');
+assert.equal(recovered.resultRef, 'spatial-1');
+assert.equal(interruptedOperation.attemptCount, 1);
 
 await assert.rejects(
   () => spaceTime.execute({ ...request, geom: 'POINT(11 21)' }),
