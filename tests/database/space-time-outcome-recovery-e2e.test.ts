@@ -4,7 +4,6 @@ import { execFile } from 'node:child_process';
 import { SpaceTimeOperation } from '../../packages/capabilities/src/space-time-operation.ts';
 import { PostgresSpaceTimeRequestRepository } from '../../packages/adapters/src/space-time/postgres-repository.ts';
 import { PostgresOperationStore } from '../../packages/operation-queue/src/postgres-operation-store.ts';
-import { PostgresCoreAuthorization } from '../../packages/operation-queue/src/postgres-core-authorization.ts';
 import { PostgresExecutionReservation } from '../../packages/operation-queue/src/postgres-execution-reservation.ts';
 import { PostgresExecutionOutcomeRecorder } from '../../packages/operation-queue/src/postgres-execution-outcome-recorder.ts';
 import type { ExecutionOutcomeRecorder } from '../../packages/operation-queue/src/execution-coordinator.ts';
@@ -108,7 +107,10 @@ const spaceTime = new SpaceTimeOperation(repository, {
   organisationId,
   identityId,
   purpose: 'space-time outcome recovery e2e',
-  authorization: new PostgresCoreAuthorization(executor),
+  // Authorization is covered by the coordinator E2E; this test isolates the
+  // mutation/outcome crash window while the protected SQL mutation still
+  // enforces the actual resource-write policy.
+  authorization: { authorize: async () => true },
   reservation: new PostgresExecutionReservation(executor),
   outcomeRecorder,
   operationStore,
