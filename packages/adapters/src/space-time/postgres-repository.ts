@@ -7,7 +7,11 @@ type Db = {
 type Store = { transaction<T>(work: (db: Db) => Promise<T>): Promise<T> };
 
 export class PostgresSpaceTimeRequestRepository implements SpaceTimeRequestRepository {
-  constructor(private readonly db: Store) {}
+  private readonly db: Store;
+
+  constructor(db: Store) {
+    this.db = db;
+  }
 
   async saveRequest(
     operation: OperationEnvelope,
@@ -21,30 +25,11 @@ export class PostgresSpaceTimeRequestRepository implements SpaceTimeRequestRepos
     }
     await this.db.transaction(async db => {
       const rows = await db.query<{ id: string }>(
-        `with canonical_payload as (
-          select encode(public.digest(convert_to(jsonb_build_object(
-            'action', 'space_time.spatial_representation_create',
-            'organisationId', $2::uuid::text,
-            'identityId', $3::uuid::text,
-            'purpose', $11::text,
-            'resourceId', $4::uuid::text,
-            'representationType', $5::text,
-            'geom', $6::text,
-            'precisionLevel', $7::text,
-            'coordinateConfidence', $8::numeric,
-            'sourceEvidenceId', $9::uuid::text
-          )::text, 'UTF8'), 'sha256'), 'hex') as hash
-        )
-        insert into core.space_time_representation_requests(
-          id,organisation_id,identity_id,resource_id,representation_type,geom,
-          precision_level,coordinate_confidence,source_evidence_id,payload_hash
-        )
-        select $1,$2,$3,$4,$5,$6::geometry,$7,$8,$9,canonical_payload.hash
-          from canonical_payload
-         where canonical_payload.hash = $10
-        on conflict (id) do update set id = excluded.id
-          where core.space_time_representation_requests.payload_hash = excluded.payload_hash
-        returning id`,
+        `select id
+           from core_private.register_space_time_representation_request(
+             $1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::text,$6::text,$7::text,
+             $8::numeric,$9::uuid,$10::text,$11::text
+           )`,
         [
           requestId, operation.organisationId, operation.identityId, representation.resourceId,
           representation.representationType, representation.geom ?? null, representation.precisionLevel,
@@ -81,6 +66,17 @@ export class PostgresSpaceTimeRequestRepository implements SpaceTimeRequestRepos
     const result = rows[0];
     if (!result) return undefined;
     return { representationId: String(result.representation_id), decision: String(result.decision) };
+  }
+
+  async getConsumedReceipt(payloadRef: string): Promise<string | undefined> {
+    const rows = await this.db.transaction(db => db.query<{
+      representation_id: string | null;
+    }>(
+      'select representation_id from core_private.get_space_time_consumed_receipt($1::uuid)',
+      [payloadRef],
+    ));
+    const id = rows[0]?.representation_id;
+    return id == null ? undefined : String(id);
   }
 
   async getOutcome(operationId: string): Promise<{ outcome: string; resultRef?: string; resultHash?: string } | undefined> {

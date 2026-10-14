@@ -148,8 +148,9 @@ begin
 
   select * into retry_mutation
     from core_private.consume_space_time_representation_request('00000000-0000-0000-0000-0000000002f7');
-  if retry_mutation.decision <> 'request_not_pending' then
-    raise exception 'consumed Space-Time request was not rejected on retry';
+  if retry_mutation.decision <> 'already_consumed'
+     or retry_mutation.representation_id <> first_mutation.representation_id then
+    raise exception 'consumed Space-Time request did not return its original mutation receipt';
   end if;
 
   select count(*) into representation_count
