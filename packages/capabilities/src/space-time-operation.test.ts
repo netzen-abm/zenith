@@ -10,7 +10,7 @@ const db = {
   transaction: async <T>(work: (db: { query: <R extends Record<string, unknown>>(sql: string, params: readonly unknown[]) => Promise<R[]> }) => Promise<T>) =>
     work({ query: async <R extends Record<string, unknown>>(sql: string, params: readonly unknown[]) => {
       calls.push(sql);
-      if (sql.includes('insert into core.space_time_representation_requests')) {
+      if (sql.includes('register_space_time_representation_request')) {
         const [id, , , , , , , , , hash] = params;
         const existing = requestRows.get(String(id));
         if (existing && existing.payloadHash !== hash) return [] as R[];
