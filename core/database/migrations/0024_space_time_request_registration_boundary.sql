@@ -22,7 +22,7 @@ security definer
 set search_path = ''
 as $register$
 declare
-  v_geometry geometry;
+  v_geometry public.geometry;
   v_hash text;
   v_existing core.space_time_representation_requests%rowtype;
 begin
@@ -47,8 +47,8 @@ begin
   end if;
 
   if p_geom is not null then
-    v_geometry := p_geom::geometry;
-    if st_srid(v_geometry) <> 4326 or st_isempty(v_geometry) or not st_isvalid(v_geometry) then
+    v_geometry := p_geom::public.geometry;
+    if public.st_srid(v_geometry) <> 4326 or public.st_isempty(v_geometry) or not public.st_isvalid(v_geometry) then
       raise exception 'space_time_geometry_invalid';
     end if;
   end if;
