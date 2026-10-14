@@ -29,7 +29,7 @@ const db = {
         row.representationId = 'spatial-1';
         return [{ representation_id: 'spatial-1', decision: 'created' }] as R[];
       }
-      if (sql.includes('select representation_id') && sql.includes("status = 'consumed'")) {
+      if (sql.includes('get_space_time_consumed_receipt')) {
         const row = requestRows.get(String(params[0]));
         return row?.representationId ? [{ representation_id: row.representationId }] as R[] : [] as R[];
       }
