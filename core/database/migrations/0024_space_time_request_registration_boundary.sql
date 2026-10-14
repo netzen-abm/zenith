@@ -84,7 +84,7 @@ begin
     p_request_id, p_organisation_id, p_identity_id, p_resource_id,
     p_representation_type, v_geometry, p_precision_level,
     p_coordinate_confidence, p_source_evidence_id, v_hash
-  ) on conflict (id) do nothing;
+  ) on conflict on constraint space_time_representation_requests_pkey do nothing;
 
   select * into v_existing
     from core.space_time_representation_requests
