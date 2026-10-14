@@ -114,6 +114,21 @@ jobs:
           grep -Eqi "security invoker" "$file"
           grep -Eqi "set search_path = ''" "$file"
 
+      - name: Enforce Space-Time reservation trust boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          file="core/database/migrations/0026_space_time_authorization_action_mapping.sql"
+          test -f "$file"
+          grep -Eqi "security definer" "$file"
+          grep -Fq "set search_path = ''" "$file"
+          grep -Fq "revoke all on function operations.reserve_execution(uuid) from public, anon" "$file"
+          grep -Fq "grant execute on function operations.reserve_execution(uuid) to authenticated" "$file"
+          grep -Fq "o.organisation_id = core.current_organisation_id()" "$file"
+          grep -Fq "core.authorize_capability(v_policy_action, v_operation.resource_id, v_operation.purpose)" "$file"
+          grep -Fq "o.state = 'queued'" "$file"
+          grep -Fq "v_operation.state <> 'queued'" "$file"
+
       - name: Validate explicit migration inventory and order
         shell: bash
         run: |
