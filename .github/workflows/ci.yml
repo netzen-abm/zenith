@@ -127,7 +127,7 @@ jobs:
           grep -Fq "o.organisation_id = core.current_organisation_id()" "$file"
           grep -Fq "core.authorize_capability(v_policy_action, v_operation.resource_id, v_operation.purpose)" "$file"
           grep -Fq "o.state = 'queued'" "$file"
-          grep -Fq "o.state <> 'queued'" "$file"
+          grep -Fq "v_operation.state <> 'queued'" "$file"
 
       - name: Validate explicit migration inventory and order
         shell: bash
