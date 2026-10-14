@@ -47,12 +47,12 @@ select set_config('app.organisation_id','${organisationId}',true);
 `;
     if (statement.includes('insert into core.space_time_representation_requests')) {
       const output = await psql(context + statement + '; commit;');
-      const id = output.split('\\n').filter(Boolean).at(-1);
+      const id = output.split('\n').filter(Boolean).at(-1);
       return id ? [{ id }] as T[] : [];
     }
     const output = await psql(context + `select 'ZENITH_JSON:' || row_to_json(q)::text from (${statement}) q;
 commit;`);
-    const rows = output.split('\\n')
+    const rows = output.split('\n')
       .map(line => line.trim())
       .filter(line => line.includes('ZENITH_JSON:'))
       .map(line => JSON.parse(line.slice(line.indexOf('ZENITH_JSON:') + 'ZENITH_JSON:'.length))) as T[];
