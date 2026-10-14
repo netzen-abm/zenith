@@ -12,7 +12,7 @@ returns table (
 )
 language plpgsql
 volatile
-security invoker
+security definer
 set search_path = ''
 as $reserve$
 declare
@@ -78,6 +78,9 @@ begin
   return query select true, 'allow', operation_id, state, attempt_count;
 end
 $reserve$;
+
+revoke all on function operations.reserve_execution(uuid) from public, anon;
+grant execute on function operations.reserve_execution(uuid) to authenticated;
 
 comment on function operations.reserve_execution(uuid) is
   'Atomically reserves queued operations after canonical authorization. Domain actions are translated to policy vocabulary only at the authorization boundary; durable operation identity remains domain-specific.';
