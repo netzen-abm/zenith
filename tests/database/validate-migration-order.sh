@@ -33,6 +33,7 @@ expected=(
   "0022_space_time_payload_idempotency.sql"
   "0023_space_time_mutation_receipt.sql"
   "0024_space_time_request_registration_boundary.sql"
+  "0025_space_time_consumed_receipt_lookup.sql"
 )
 
 mapfile -t actual < <(find "$MIGRATIONS_DIR" -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sort)
