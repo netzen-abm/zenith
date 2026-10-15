@@ -1,4 +1,4 @@
-import type { OperationEnvelope } from './operation.ts';
+import type { OperationEnvelope, OperationState } from './operation.ts';
 
 export type CreateOrGetOperationInput = {
   operationId: string;
@@ -22,4 +22,6 @@ export type CreateOrGetOperationResult = {
 /** Persistence contract only; it does not authorize or execute operations. */
 export interface OperationStore {
   createOrGet(input: CreateOrGetOperationInput): Promise<CreateOrGetOperationResult>;
+  /** Apply one compare-and-set lifecycle transition through the canonical persistence boundary. */
+  transition(operationId: string, expectedState: OperationState, nextState: OperationState): Promise<void>;
 }
