@@ -55,9 +55,16 @@ export class ResearchOperation {
       return resolved.operation;
     });
     if (!result.executed) throw new Error('research_not_executed:' + result.decision);
-    return result.outcome?.resultRef
-      ? { ...canonicalOperation, resultRef: result.outcome.resultRef }
-      : canonicalOperation;
+    const outcomeState = result.outcome?.outcome === 'acknowledged' ? 'acknowledged'
+      : result.outcome?.outcome === 'retry_wait' ? 'retry_wait'
+      : result.outcome?.outcome === 'conflict' ? 'conflict'
+      : result.outcome?.outcome === 'rejected' ? 'rejected'
+      : canonicalOperation.state;
+    return {
+      ...canonicalOperation,
+      state: outcomeState,
+      ...(result.outcome?.resultRef ? { resultRef: result.outcome.resultRef } : {}),
+    };
   }
 
   private createOperation(query: ResearchQuery): OperationEnvelope {
