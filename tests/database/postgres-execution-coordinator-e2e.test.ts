@@ -90,21 +90,21 @@ rollback;`);
     }
     if (sql.includes('operations.create_or_get(')) {
       const [opId, orgId, key, action, identity, purpose, expires, payloadRef] = params;
-      const lit = (value: unknown) => value === null || value === undefined ? 'null' : \"'\" + String(value).replaceAll(\"'\", \"''\") + \"'\";
+      const lit = (value: unknown) => value === null || value === undefined ? 'null' : "'" + String(value).replaceAll("'", "''") + "'";
       const output = await psql(`begin;\nset local role authenticated;\nselect set_config('request.jwt.claim.sub','${authUserId}',true);\nselect set_config('app.identity_id','${identityId}',true);\nselect set_config('app.organisation_id','${organisationId}',true);\nselect row_to_json(t)::text from (select * from operations.create_or_get(${lit(opId)}::uuid,${lit(orgId)}::uuid,${lit(key)},${lit(action)},${lit(identity)}::uuid,${lit(purpose)},${lit(expires)}::timestamptz,${lit(payloadRef)})) t;\ncommit;`);
       const line = output.split('\n').find(entry => entry.startsWith('{'));
       return (line ? [JSON.parse(line)] : []) as T[];
     }
     if (sql.startsWith('insert into core.research_query_requests')) {
       const v = params;
-      const lit = (value: unknown) => value === null || value === undefined ? 'null' : \"'\" + String(value).replaceAll(\"'\", \"''\") + \"'\";
+      const lit = (value: unknown) => value === null || value === undefined ? 'null' : "'" + String(value).replaceAll("'", "''") + "'";
       const output = await psql(`begin;\nset local role authenticated;\nselect set_config('request.jwt.claim.sub','${authUserId}',true);\nselect set_config('app.identity_id','${identityId}',true);\nselect set_config('app.organisation_id','${organisationId}',true);\nwith inserted as (insert into core.research_query_requests(id,organisation_id,identity_id,research_question_id,intent,query_text,concepts,filters,sort,page_size,cursor,requested_fields,open_access_required,purpose) values (${lit(v[0])}::uuid,${lit(v[1])}::uuid,${lit(v[2])}::uuid,${lit(v[3])}::uuid,${lit(v[4])},${lit(v[5])},${lit(v[6])}::jsonb,${lit(v[7])}::jsonb,${lit(v[8])}::jsonb,${Number(v[9])},${lit(v[10])},${lit(v[11])}::jsonb,${v[12] === true ? 'true' : 'false'},${lit(v[13])}) returning id) select row_to_json(inserted)::text from inserted;\ncommit;`);
       const line = output.split('\n').find(entry => entry.startsWith('{'));
       return (line ? [JSON.parse(line)] : []) as T[];
     }
     if (sql.includes('from core.research_query_requests')) {
       const [id, orgId] = params;
-      const lit = (value: unknown) => \"'\" + String(value).replaceAll(\"'\", \"''\") + \"'\";
+      const lit = (value: unknown) => value === null || value === undefined ? 'null' : "'" + String(value).replaceAll("'", "''") + "'";
       const output = await psql(`begin;\nset local role authenticated;\nselect set_config('request.jwt.claim.sub','${authUserId}',true);\nselect set_config('app.identity_id','${identityId}',true);\nselect set_config('app.organisation_id','${organisationId}',true);\nselect row_to_json(t)::text from (select id,research_question_id,intent,query_text,concepts,filters,sort,page_size,cursor,requested_fields,open_access_required,identity_id as requester_identity_id,organisation_id,purpose from core.research_query_requests where id = ${lit(id)}::uuid and organisation_id = ${lit(orgId)}::uuid limit 1) t;\ncommit;`);
       const line = output.split('\n').find(entry => entry.startsWith('{'));
       return (line ? [JSON.parse(line)] : []) as T[];
