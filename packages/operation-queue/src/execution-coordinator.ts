@@ -1,4 +1,5 @@
 import type { OperationEnvelope } from '../../contracts/src/operation.ts';
+import type { OperationStore } from '../../contracts/src/operation-store.ts';
 
 export type ExecutionDecision = 'allow' | 'deny_authorization' | 'deny_reservation';
 export type ReservationResult = { allowed: boolean; decision: string; attemptCount?: number };
@@ -21,17 +22,20 @@ export class ExecutionCoordinator {
   private readonly reservation: ExecutionReservation;
   private readonly handler: ExecutionHandler;
   private readonly outcomeRecorder: ExecutionOutcomeRecorder;
+  private readonly lifecycleStore?: Pick<OperationStore, 'transition'>;
 
   constructor(
     authorization: ExecutionAuthorization,
     reservation: ExecutionReservation,
     handler: ExecutionHandler,
     outcomeRecorder: ExecutionOutcomeRecorder,
+    lifecycleStore?: Pick<OperationStore, 'transition'>,
   ) {
     this.authorization = authorization;
     this.reservation = reservation;
     this.handler = handler;
     this.outcomeRecorder = outcomeRecorder;
+    this.lifecycleStore = lifecycleStore;
   }
 
   async execute(
@@ -45,6 +49,20 @@ export class ExecutionCoordinator {
     let admittedOperation = operation;
     if (preparation) {
       admittedOperation = (await preparation(operation)) ?? operation;
+    }
+
+    // New canonical operations start at created. Advance them through the existing
+    // compare-and-set lifecycle before reservation; never bypass the queued-state gate.
+    if (admittedOperation.state === 'created' || admittedOperation.state === 'authorized') {
+      if (!this.lifecycleStore) throw new Error('execution_lifecycle_unavailable');
+      if (admittedOperation.state === 'created') {
+        await this.lifecycleStore.transition(admittedOperation.operationId, 'created', 'authorized');
+        admittedOperation = { ...admittedOperation, state: 'authorized' };
+      }
+      if (admittedOperation.state === 'authorized') {
+        await this.lifecycleStore.transition(admittedOperation.operationId, 'authorized', 'queued');
+        admittedOperation = { ...admittedOperation, state: 'queued' };
+      }
     }
 
     const reserved = await this.reservation.reserve(admittedOperation.operationId);
