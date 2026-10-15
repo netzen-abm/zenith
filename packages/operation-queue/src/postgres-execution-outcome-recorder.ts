@@ -33,4 +33,30 @@ export class PostgresExecutionOutcomeRecorder implements ExecutionOutcomeRecorde
     if (!result) throw new Error('execution_outcome_no_result');
     return { recorded: result.recorded === true, decision: result.decision };
   }
+
+  async findLatest(operationId: string): Promise<ExecutionOutcome | undefined> {
+    const rows = await this.db.query<{
+      outcome: ExecutionOutcome['outcome'];
+      error_code: string | null;
+      result_ref: string | null;
+      result_hash: string | null;
+      occurred_at: string;
+    }>(
+      `select outcome, error_code, result_ref, result_hash, occurred_at
+         from operations.execution_outcomes
+        where operation_id = $1::uuid
+        order by attempt_count desc
+        limit 1`,
+      [operationId],
+    );
+    const row = rows[0];
+    if (!row) return undefined;
+    return {
+      outcome: row.outcome,
+      ...(row.error_code == null ? {} : { errorCode: row.error_code }),
+      ...(row.result_ref == null ? {} : { resultRef: row.result_ref }),
+      ...(row.result_hash == null ? {} : { resultHash: row.result_hash }),
+      occurredAt: row.occurred_at,
+    };
+  }
 }
