@@ -5,6 +5,7 @@ import { ExecutionCoordinator } from '../../packages/operation-queue/src/executi
 import { PostgresCoreAuthorization } from '../../packages/operation-queue/src/postgres-core-authorization.ts';
 import { PostgresExecutionReservation } from '../../packages/operation-queue/src/postgres-execution-reservation.ts';
 import { PostgresExecutionOutcomeRecorder } from '../../packages/operation-queue/src/postgres-execution-outcome-recorder.ts';
+import { PostgresOperationStore } from '../../packages/operation-queue/src/postgres-operation-store.ts';
 
 const execFileAsync = promisify(execFile);
 const dbUrl = process.env.DATABASE_URL;
@@ -77,6 +78,12 @@ rollback;`);
       if (!line) throw new Error(`core_authorization_result_not_found: ${output}`);
       const [allowed, decision] = line.split('|');
       return [{ allowed: allowed === 'true', decision }] as T[];
+    }
+    if (sql.includes('operations.transition')) {
+      const [id, expected, next] = params;
+      const output = await psql(`begin;\nset local role authenticated;\nselect set_config('request.jwt.claim.sub','${authUserId}',true);\nselect set_config('app.identity_id','${identityId}',true);\nselect set_config('app.organisation_id','${organisationId}',true);\nselect 'transitioned' from operations.transition('${String(id)}'::uuid,'${String(expected)}','${String(next)}');\ncommit;`);
+      if (!output.includes('transitioned')) throw new Error(`operation_transition_result_not_found: ${output}`);
+      return [{ transition: 'transitioned' }] as T[];
     }
     if (sql.includes('operations.record_execution_outcome')) {
       const [id, attempt, outcome, errorCode, resultRef, resultHash, occurredAt] = params;
@@ -302,3 +309,43 @@ delete from operations.operations where id = '${handlerFailureOperationId}';
 `);
 console.log('PostgreSQL handler-failure durable conflict assertions passed.');
 
+
+
+// Full PostgreSQL lifecycle proof: create-or-get starts at created; the shared coordinator
+// must use the canonical transition function before the reservation gate accepts the operation.
+const lifecycleOperationId = '00000000-0000-0000-0000-0000000000f4';
+await psql(`
+delete from operations.execution_outbox where operation_id = '${lifecycleOperationId}';
+delete from operations.execution_outcomes where operation_id = '${lifecycleOperationId}';
+delete from operations.operations where id = '${lifecycleOperationId}';
+insert into operations.operations(id,organisation_id,identity_id,idempotency_key,action,resource_id,purpose,expires_at)
+values ('${lifecycleOperationId}','${organisationId}','${identityId}','coordinator-lifecycle-e2e',
+  'annotate','${resourceId}','coordinator lifecycle e2e',clock_timestamp()+interval '10 minutes');
+`);
+const lifecycleOperation = {
+  operationId: lifecycleOperationId, idempotencyKey: 'coordinator-lifecycle-e2e',
+  action: 'annotate', resourceId, purpose: 'coordinator lifecycle e2e',
+  state: 'created' as const, createdAt: new Date().toISOString(), attemptCount: 0,
+};
+let lifecycleHandlerEntries = 0;
+const lifecycleStore = new PostgresOperationStore(db);
+const lifecycleCoordinator = new ExecutionCoordinator(
+  authorization,
+  reservation,
+  async () => {
+    lifecycleHandlerEntries += 1;
+    return { outcome: 'acknowledged', resultRef: 'lifecycle-provider-result' };
+  },
+  outcomeRecorder,
+  lifecycleStore,
+);
+const lifecycleResult = await lifecycleCoordinator.execute(lifecycleOperation);
+assert.deepEqual(lifecycleResult, { executed: true, decision: 'allow' });
+assert.equal(lifecycleHandlerEntries, 1);
+assert.equal(await psql(`select state || '|' || attempt_count from operations.operations where id = '${lifecycleOperationId}'`), 'acknowledged|1');
+assert.equal(await psql(`select count(*) from operations.execution_outcomes where operation_id = '${lifecycleOperationId}'`), '1');
+const lifecycleRetry = await lifecycleCoordinator.execute({ ...lifecycleOperation, state: 'acknowledged', attemptCount: 1 });
+assert.deepEqual(lifecycleRetry, { executed: false, decision: 'deny_reservation' });
+assert.equal(lifecycleHandlerEntries, 1, 'duplicate lifecycle request must not re-enter provider handler');
+await psql(`delete from operations.execution_outbox where operation_id = '${lifecycleOperationId}';\ndelete from operations.execution_outcomes where operation_id = '${lifecycleOperationId}';\ndelete from operations.operations where id = '${lifecycleOperationId}';`);
+console.log('PostgreSQL lifecycle-before-reservation and duplicate non-replay assertions passed.');
