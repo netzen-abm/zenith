@@ -128,6 +128,13 @@ jobs:
           grep -Fq "core.authorize_capability(v_policy_action, v_operation.resource_id, v_operation.purpose)" "$file"
           grep -Fq "o.state = 'queued'" "$file"
           grep -Fq "v_operation.state <> 'queued'" "$file"
+          research_file="core/database/migrations/0027_research_authorization_action_mapping.sql"
+          test -f "$research_file"
+          grep -Eqi "security definer" "$research_file"
+          grep -Fq "set search_path = ''" "$research_file"
+          grep -Fq "v_operation.action = 'research.query' then 'discover'" "$research_file"
+          grep -Fq "revoke all on function operations.reserve_execution(uuid) from public, anon" "$research_file"
+          grep -Fq "grant execute on function operations.reserve_execution(uuid) to authenticated" "$research_file"
 
       - name: Validate explicit migration inventory and order
         shell: bash
