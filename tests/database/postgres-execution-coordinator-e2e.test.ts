@@ -441,3 +441,63 @@ delete from operations.operations where idempotency_key = '${researchQueryId}';
 delete from core.research_query_requests where id = '${researchQueryId}';
 `);
 console.log('PostgreSQL Research idempotent replay and payload-conflict E2E assertions passed.');
+
+// Research-specific ambiguity proof against real PostgreSQL persistence:
+// the provider succeeds, durable recording fails, and a fresh operation instance
+// must leave the canonical operation unresolved rather than re-entering the provider.
+const ambiguousResearchQueryId = '00000000-0000-0000-0000-0000000000f6';
+await psql(`
+delete from operations.execution_outbox where operation_id in (select id from operations.operations where idempotency_key = '${ambiguousResearchQueryId}');
+delete from operations.execution_outcomes where operation_id in (select id from operations.operations where idempotency_key = '${ambiguousResearchQueryId}');
+delete from operations.operations where idempotency_key = '${ambiguousResearchQueryId}';
+delete from core.research_query_requests where id = '${ambiguousResearchQueryId}';
+`);
+const ambiguousResearchQuery: ResearchQuery = {
+  ...researchQuery,
+  queryId: ambiguousResearchQueryId,
+  text: 'Pattanam archaeology ambiguous outcome',
+};
+let ambiguousResearchRecordCalls = 0;
+const ambiguousResearchRecorder = {
+  async record() {
+    ambiguousResearchRecordCalls += 1;
+    throw new Error('simulated_research_outcome_persistence_interruption');
+  },
+  findLatest: (id: string) => outcomeRecorder.findLatest(id),
+};
+const buildAmbiguousResearchOperation = () => new ResearchOperation(researchStore, realResearchProvider, {
+  authorization: { authorize: async () => true },
+  reservation,
+  operationStore: realOperationStore,
+  outcomeRecorder: ambiguousResearchRecorder,
+});
+const providerCallsBeforeAmbiguity = researchProviderCalls;
+await assert.rejects(
+  () => buildAmbiguousResearchOperation().execute(ambiguousResearchQuery),
+  /simulated_research_outcome_persistence_interruption/,
+);
+assert.equal(researchProviderCalls, providerCallsBeforeAmbiguity + 1, 'provider succeeds exactly once before outcome persistence fails');
+assert.equal(ambiguousResearchRecordCalls, 1);
+const ambiguousResearchRetry = buildAmbiguousResearchOperation();
+await assert.rejects(
+  () => ambiguousResearchRetry.execute({ ...ambiguousResearchQuery }),
+  /research_not_executed:deny_reservation/,
+);
+assert.equal(researchProviderCalls, providerCallsBeforeAmbiguity + 1, 'fresh ResearchOperation instance must not repeat provider work while outcome is unknown');
+assert.equal(ambiguousResearchRecordCalls, 1, 'retry must not attempt to fabricate a durable outcome');
+const canonicalAmbiguousResearchId = await psql(`select id from operations.operations where idempotency_key = '${ambiguousResearchQueryId}'`);
+assert.equal(
+  await psql(`select state || '|' || attempt_count from operations.operations where id = '${canonicalAmbiguousResearchId}'`),
+  'in_flight|1',
+  'ambiguous Research result must remain unresolved at the durable operation boundary',
+);
+assert.equal(await psql(`select count(*) from operations.execution_outcomes where operation_id = '${canonicalAmbiguousResearchId}'`), '0');
+assert.equal(await psql(`select count(*) from operations.execution_outbox where operation_id = '${canonicalAmbiguousResearchId}'`), '0');
+await psql(`
+delete from operations.execution_outbox where operation_id = '${canonicalAmbiguousResearchId}';
+delete from operations.execution_outcomes where operation_id = '${canonicalAmbiguousResearchId}';
+delete from operations.operations where id = '${canonicalAmbiguousResearchId}';
+delete from core.research_query_requests where id = '${ambiguousResearchQueryId}';
+`);
+console.log('PostgreSQL Research ambiguous-outcome E2E assertions passed.');
+
