@@ -53,8 +53,7 @@ export class ExecutionCoordinator {
 
     // New canonical operations start at created. Advance them through the existing
     // compare-and-set lifecycle before reservation; never bypass the queued-state gate.
-    if (admittedOperation.state === 'created' || admittedOperation.state === 'authorized') {
-      if (!this.lifecycleStore) throw new Error('execution_lifecycle_unavailable');
+    if (this.lifecycleStore && (admittedOperation.state === 'created' || admittedOperation.state === 'authorized')) {
       if (admittedOperation.state === 'created') {
         await this.lifecycleStore.transition(admittedOperation.operationId, 'created', 'authorized');
         admittedOperation = { ...admittedOperation, state: 'authorized' };
