@@ -39,3 +39,8 @@ assert.equal(result.operation.state, 'in_flight');
 assert.equal(result.operation.attemptCount, 1);
 assert.match(calls[0].sql, /operations\.create_or_get/);
 assert.equal(calls[0].params[1], 'org-1');
+
+
+await store.transition('canonical-op', 'created', 'authorized');
+assert.match(calls[1].sql, /operations\.transition/);
+assert.deepEqual(calls[1].params, ['canonical-op', 'created', 'authorized']);

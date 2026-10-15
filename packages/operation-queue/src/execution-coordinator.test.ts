@@ -174,3 +174,42 @@ const handlerFailureCoordinator = new ExecutionCoordinator(
 );
 await assert.rejects(() => handlerFailureCoordinator.execute(operation), /simulated_handler_failure/);
 assert.deepEqual(handlerFailureOutcomes, ['conflict:handler_outcome_unknown']);
+
+
+// Newly created canonical operations must traverse the database lifecycle before reservation.
+const lifecycleCalls: string[] = [];
+const createdLifecycleOperation: OperationEnvelope = {
+  ...operation,
+  operationId: 'op-created-lifecycle',
+  idempotencyKey: 'idem-created-lifecycle',
+  state: 'created',
+  attemptCount: 0,
+};
+const lifecycleCoordinator = new ExecutionCoordinator(
+  authorization,
+  {
+    async reserve(operationId) {
+      assert.equal(operationId, createdLifecycleOperation.operationId);
+      assert.deepEqual(lifecycleCalls, [
+        'created:authorized',
+        'authorized:queued',
+      ]);
+      return { allowed: true, decision: 'allow', attemptCount: 1 };
+    },
+  },
+  async (admitted) => {
+    assert.equal(admitted.state, 'queued');
+    return { outcome: 'acknowledged' };
+  },
+  { async record() { return { recorded: true, decision: 'recorded' }; } },
+  {
+    async transition(operationId, expectedState, nextState) {
+      assert.equal(operationId, createdLifecycleOperation.operationId);
+      lifecycleCalls.push(expectedState + ':' + nextState);
+    },
+  },
+);
+const lifecycleResult = await lifecycleCoordinator.execute(createdLifecycleOperation);
+assert.deepEqual(lifecycleResult, { executed: true, decision: 'allow' });
+assert.deepEqual(lifecycleCalls, ['created:authorized', 'authorized:queued']);
+

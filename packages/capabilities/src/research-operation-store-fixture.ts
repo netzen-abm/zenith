@@ -1,4 +1,4 @@
-import type { OperationEnvelope } from '../../contracts/src/operation.ts';
+import type { OperationEnvelope, OperationState } from '../../contracts/src/operation.ts';
 import type { CreateOrGetOperationInput, CreateOrGetOperationResult, OperationStore } from '../../contracts/src/operation-store.ts';
 
 /** Deterministic test double; production must use a durable implementation. */
@@ -31,4 +31,16 @@ export class MemoryOperationStore implements OperationStore {
     this.operations.set(key, operation);
     return { created: true, operation: { ...operation } };
   }
+
+  async transition(operationId: string, expectedState: OperationState, nextState: OperationState): Promise<void> {
+    const entry = [...this.operations.entries()].find(([, operation]) => operation.operationId === operationId);
+    if (!entry) throw new Error('operation_not_found');
+    const [key, operation] = entry;
+    if (operation.state !== expectedState) throw new Error('operation_transition_conflict');
+    const allowed = (expectedState === 'created' && nextState === 'authorized') ||
+      (expectedState === 'authorized' && nextState === 'queued');
+    if (!allowed) throw new Error('operation_transition_invalid');
+    this.operations.set(key, { ...operation, state: nextState });
+  }
+
 }
