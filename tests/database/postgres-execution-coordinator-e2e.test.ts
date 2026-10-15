@@ -329,8 +329,9 @@ assert.equal(
   '1',
 );
 const handlerFailureRetry = await handlerFailureCoordinator.execute(handlerFailureOperation);
-assert.equal(handlerFailureRetry.executed, false);
-assert.equal(handlerFailureRetry.decision, 'deny_reservation');
+assert.equal(handlerFailureRetry.executed, true, 'durable conflict is replayed as the recorded outcome');
+assert.equal(handlerFailureRetry.outcome?.outcome, 'conflict');
+assert.equal(handlerFailureRetry.outcome?.errorCode, 'handler_outcome_unknown');
 assert.equal(handlerFailureEntries, 1, 'durable conflict must block blind replay');
 await psql(`
 delete from operations.execution_outbox where operation_id = '${handlerFailureOperationId}';
