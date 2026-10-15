@@ -6,6 +6,9 @@ import { PostgresCoreAuthorization } from '../../packages/operation-queue/src/po
 import { PostgresExecutionReservation } from '../../packages/operation-queue/src/postgres-execution-reservation.ts';
 import { PostgresExecutionOutcomeRecorder } from '../../packages/operation-queue/src/postgres-execution-outcome-recorder.ts';
 import { PostgresOperationStore } from '../../packages/operation-queue/src/postgres-operation-store.ts';
+import { PostgresResearchQueryStore } from '../../packages/adapters/src/research/postgres-repository.ts';
+import { ResearchOperation } from '../../packages/capabilities/src/research-operation.ts';
+import type { ResearchQuery } from '../../packages/capabilities/src/research-intelligence.ts';
 
 const execFileAsync = promisify(execFile);
 const dbUrl = process.env.DATABASE_URL;
@@ -84,6 +87,27 @@ rollback;`);
       const output = await psql(`begin;\nset local role authenticated;\nselect set_config('request.jwt.claim.sub','${authUserId}',true);\nselect set_config('app.identity_id','${identityId}',true);\nselect set_config('app.organisation_id','${organisationId}',true);\nselect 'transitioned' from operations.transition('${String(id)}'::uuid,'${String(expected)}','${String(next)}');\ncommit;`);
       if (!output.includes('transitioned')) throw new Error(`operation_transition_result_not_found: ${output}`);
       return [{ transition: 'transitioned' }] as T[];
+    }
+    if (sql.includes('operations.create_or_get(')) {
+      const [opId, orgId, key, action, identity, purpose, expires, payloadRef] = params;
+      const lit = (value: unknown) => value === null || value === undefined ? 'null' : \"'\" + String(value).replaceAll(\"'\", \"''\") + \"'\";
+      const output = await psql(`begin;\\nset local role authenticated;\\nselect set_config('request.jwt.claim.sub','${authUserId}',true);\\nselect set_config('app.identity_id','${identityId}',true);\\nselect set_config('app.organisation_id','${organisationId}',true);\\nselect row_to_json(t)::text from (select * from operations.create_or_get(${lit(opId)}::uuid,${lit(orgId)}::uuid,${lit(key)},${lit(action)},${lit(identity)}::uuid,${lit(purpose)},${lit(expires)}::timestamptz,${lit(payloadRef)})) t;\\ncommit;`);
+      const line = output.split('\\n').find(entry => entry.startsWith('{'));
+      return (line ? [JSON.parse(line)] : []) as T[];
+    }
+    if (sql.startsWith('insert into core.research_query_requests')) {
+      const v = params;
+      const lit = (value: unknown) => value === null || value === undefined ? 'null' : \"'\" + String(value).replaceAll(\"'\", \"''\") + \"'\";
+      const output = await psql(`begin;\\nset local role authenticated;\\nselect set_config('request.jwt.claim.sub','${authUserId}',true);\\nselect set_config('app.identity_id','${identityId}',true);\\nselect set_config('app.organisation_id','${organisationId}',true);\\nwith inserted as (insert into core.research_query_requests(id,organisation_id,identity_id,research_question_id,intent,query_text,concepts,filters,sort,page_size,cursor,requested_fields,open_access_required,purpose) values (${lit(v[0])}::uuid,${lit(v[1])}::uuid,${lit(v[2])}::uuid,${lit(v[3])}::uuid,${lit(v[4])},${lit(v[5])},${lit(v[6])}::jsonb,${lit(v[7])}::jsonb,${lit(v[8])}::jsonb,${Number(v[9])},${lit(v[10])},${lit(v[11])}::jsonb,${v[12] === true ? 'true' : 'false'},${lit(v[13])}) returning id) select row_to_json(inserted)::text from inserted;\\ncommit;`);
+      const line = output.split('\\n').find(entry => entry.startsWith('{'));
+      return (line ? [JSON.parse(line)] : []) as T[];
+    }
+    if (sql.includes('from core.research_query_requests')) {
+      const [id, orgId] = params;
+      const lit = (value: unknown) => \"'\" + String(value).replaceAll(\"'\", \"''\") + \"'\";
+      const output = await psql(`begin;\\nset local role authenticated;\\nselect set_config('request.jwt.claim.sub','${authUserId}',true);\\nselect set_config('app.identity_id','${identityId}',true);\\nselect set_config('app.organisation_id','${organisationId}',true);\\nselect row_to_json(t)::text from (select id,research_question_id,intent,query_text,concepts,filters,sort,page_size,cursor,requested_fields,open_access_required,identity_id as requester_identity_id,organisation_id,purpose from core.research_query_requests where id = ${lit(id)}::uuid and organisation_id = ${lit(orgId)}::uuid limit 1) t;\\ncommit;`);
+      const line = output.split('\\n').find(entry => entry.startsWith('{'));
+      return (line ? [JSON.parse(line)] : []) as T[];
     }
     if (sql.includes('from operations.execution_outcomes')) {
       const [id] = params;
@@ -357,3 +381,52 @@ assert.equal(lifecycleRetry.outcome?.resultRef, 'lifecycle-provider-result');
 assert.equal(lifecycleHandlerEntries, 1, 'duplicate lifecycle request must not re-enter provider handler');
 await psql(`delete from operations.execution_outbox where operation_id = '${lifecycleOperationId}';\ndelete from operations.execution_outcomes where operation_id = '${lifecycleOperationId}';\ndelete from operations.operations where id = '${lifecycleOperationId}';`);
 console.log('PostgreSQL lifecycle-before-reservation and duplicate non-replay assertions passed.');
+
+
+// Full Research vertical slice using the real PostgreSQL operation/query/outcome adapters.
+const researchQueryId = '00000000-0000-0000-0000-0000000000f5';
+const researchOperationId = '00000000-0000-0000-0000-0000000000f6';
+await psql(`delete from operations.execution_outbox where operation_id = '${researchOperationId}';\\ndelete from operations.execution_outcomes where operation_id = '${researchOperationId}';\\ndelete from operations.operations where id = '${researchOperationId}';\\ndelete from core.research_query_requests where id = '${researchQueryId}';`);
+const researchQuery: ResearchQuery = {
+  queryId: researchQueryId, intent: 'discover', text: 'Pattanam archaeology',
+  concepts: ['archaeology'], filters: { region: 'Kerala' }, sort: ['relevance'], pageSize: 10,
+  requestedFields: ['title'], requesterIdentityId: identityId, organisationId, purpose: 'research-e2e',
+};
+const researchStore = new PostgresResearchQueryStore({
+  async query<T>(text: string, values: readonly unknown[] = []) {
+    return { rows: await db.query<T & Record<string, unknown>>(text, values) };
+  },
+});
+const realOperationStore = new PostgresOperationStore(db);
+const realResearchProvider = {
+  providerId: 'e2e-fixture', adapterVersion: '1',
+  async search(query: ResearchQuery) {
+    researchProviderCalls += 1;
+    return { queryId: query.queryId, providerId: 'e2e-fixture', providerQueryReference: 'e2e:research-result-5', retrievedAt: new Date().toISOString(), results: [], partial: false, warnings: [] };
+  },
+};
+let researchProviderCalls = 0;
+const buildResearchOperation = () => new ResearchOperation(researchStore, realResearchProvider, {
+  authorization: { authorize: async () => true },
+  reservation,
+  operationStore: realOperationStore,
+  outcomeRecorder,
+});
+const researchFirst = await buildResearchOperation().execute(researchQuery);
+assert.equal(researchFirst.operationId, researchOperationId, 'PostgreSQL create-or-get must return the pre-existing canonical operation ID');
+assert.equal(researchFirst.state, 'acknowledged');
+assert.equal(researchFirst.resultRef, 'e2e:research-result-5');
+assert.equal(researchProviderCalls, 1);
+const researchRetry = await buildResearchOperation().execute({ ...researchQuery });
+assert.equal(researchRetry.operationId, researchFirst.operationId);
+assert.equal(researchRetry.resultRef, researchFirst.resultRef);
+assert.equal(researchProviderCalls, 1, 'fresh ResearchOperation instance must replay durable result without a second provider call');
+await assert.rejects(
+  () => buildResearchOperation().execute({ ...researchQuery, text: 'changed payload must conflict' }),
+  /research_query_id_conflict/,
+);
+assert.equal(researchProviderCalls, 1, 'changed payload must fail before provider execution');
+assert.equal(await psql(`select state || '|' || attempt_count from operations.operations where id = '${researchOperationId}'`), 'acknowledged|1');
+assert.equal(await psql(`select count(*) from operations.execution_outcomes where operation_id = '${researchOperationId}'`), '1');
+await psql(`delete from operations.execution_outbox where operation_id = '${researchOperationId}';\\ndelete from operations.execution_outcomes where operation_id = '${researchOperationId}';\\ndelete from operations.operations where id = '${researchOperationId}';\\ndelete from core.research_query_requests where id = '${researchQueryId}';`);
+console.log('PostgreSQL Research idempotent replay and payload-conflict E2E assertions passed.');
