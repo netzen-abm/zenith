@@ -371,7 +371,7 @@ const lifecycleCoordinator = new ExecutionCoordinator(
   lifecycleStore,
 );
 const lifecycleResult = await lifecycleCoordinator.execute(lifecycleOperation);
-assert.deepEqual(lifecycleResult, { executed: true, decision: 'allow', outcome: { outcome: 'acknowledged', resultRef: 'lifecycle-provider-result', occurredAt: lifecycleResult.outcome?.occurredAt } });
+assert.deepEqual(lifecycleResult, { executed: true, decision: 'allow', outcome: { outcome: 'acknowledged', resultRef: 'lifecycle-provider-result' } });
 assert.equal(lifecycleHandlerEntries, 1);
 assert.equal(await psql(`select state || '|' || attempt_count from operations.operations where id = '${lifecycleOperationId}'`), 'acknowledged|1');
 assert.equal(await psql(`select count(*) from operations.execution_outcomes where operation_id = '${lifecycleOperationId}'`), '1');
