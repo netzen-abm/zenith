@@ -27,7 +27,7 @@ export class ResearchOperation {
     this.store = store;
     this.provider = provider;
     this.context = context;
-    this.coordinator = new ExecutionCoordinator(context.authorization, context.reservation, operation => this.handle(operation), context.outcomeRecorder);
+    this.coordinator = new ExecutionCoordinator(context.authorization, context.reservation, operation => this.handle(operation), context.outcomeRecorder, context.operationStore);
   }
 
   async execute(query: ResearchQuery): Promise<OperationEnvelope> {
