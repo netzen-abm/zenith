@@ -36,6 +36,7 @@ const operation = new ResearchOperation(store, provider, {
 
 const result = await operation.execute({
   queryId: 'q-1', intent: 'discover', text: 'Pattanam',
+  filters: { region: 'Kerala', period: { start: 1, end: 100 } },
   pageSize: 10, requesterIdentityId: 'id-1', organisationId: 'org-1', purpose: 'research',
 });
 
@@ -43,7 +44,7 @@ assert.equal(result.action, 'research.query');
 assert.equal(result.attemptCount, 0);
 assert.equal(handlerAttemptCount, 1);
 assert.deepEqual(calls, ['authorize', 'reserve:' + result.operationId, 'outcome:acknowledged']);
-const replayed = await operation.execute({ queryId: 'q-1', intent: 'discover', text: 'Pattanam', pageSize: 10, requesterIdentityId: 'id-1', organisationId: 'org-1', purpose: 'research' });
+const replayed = await operation.execute({ queryId: 'q-1', intent: 'discover', text: 'Pattanam', filters: { period: { end: 100, start: 1 }, region: 'Kerala' }, pageSize: 10, requesterIdentityId: 'id-1', organisationId: 'org-1', purpose: 'research' });
 assert.equal(replayed.operationId, result.operationId, 'same idempotency key must resolve to the same canonical operation identity');
 assert.equal(replayed.resultRef, durableOutcome?.resultRef, 'retry returns the durable provider result reference');
 assert.equal(calls.filter(call => call.startsWith('reserve:')).length, 1, 'durable replay must bypass reservation');
