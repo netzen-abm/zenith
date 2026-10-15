@@ -394,7 +394,7 @@ delete from core.research_query_requests where id = '${researchQueryId}';
 `);
 const researchQuery: ResearchQuery = {
   queryId: researchQueryId, intent: 'discover', text: 'Pattanam archaeology',
-  concepts: ['archaeology'], filters: { region: 'Kerala' }, sort: ['relevance'], pageSize: 10,
+  concepts: ['archaeology'], filters: { region: 'Kerala', period: { start: 1, end: 100 } }, sort: ['relevance'], pageSize: 10,
   requestedFields: ['title'], requesterIdentityId: identityId, organisationId, purpose: 'research-e2e',
 };
 const researchStore = new PostgresResearchQueryStore({
@@ -423,7 +423,7 @@ assert.equal(researchFirst.operationId, canonicalResearchOperationId, 'PostgreSQ
 assert.equal(researchFirst.state, 'acknowledged');
 assert.equal(researchFirst.resultRef, 'e2e:research-result-5');
 assert.equal(researchProviderCalls, 1);
-const researchRetry = await buildResearchOperation().execute({ ...researchQuery });
+const researchRetry = await buildResearchOperation().execute({ ...researchQuery, filters: { period: { end: 100, start: 1 }, region: 'Kerala' } });
 assert.equal(researchRetry.operationId, researchFirst.operationId);
 assert.equal(researchRetry.resultRef, researchFirst.resultRef);
 assert.equal(researchProviderCalls, 1, 'fresh ResearchOperation instance must replay durable result without a second provider call');
