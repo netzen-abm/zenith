@@ -1,4 +1,4 @@
-import type { OperationEnvelope } from '../../contracts/src/operation.ts';
+import type { OperationEnvelope, OperationState } from '../../contracts/src/operation.ts';
 import type { CreateOrGetOperationInput, CreateOrGetOperationResult, OperationStore } from '../../contracts/src/operation-store.ts';
 
 export type OperationStoreSqlExecutor = {
@@ -64,4 +64,13 @@ export class PostgresOperationStore implements OperationStore {
       },
     };
   }
+
+  async transition(operationId: string, expectedState: OperationState, nextState: OperationState): Promise<void> {
+    const rows = await this.db.query<{ transition: unknown }>(
+      'select operations.transition($1::uuid, $2, $3)',
+      [operationId, expectedState, nextState],
+    );
+    if (rows.length === 0) throw new Error('operation_transition_no_result');
+  }
+
 }
