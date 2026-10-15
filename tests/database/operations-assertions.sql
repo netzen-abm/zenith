@@ -97,6 +97,12 @@ begin
   if v_created then raise exception 'duplicate create-or-get created another operation'; end if;
   if v_operation_id <> v_second_operation_id then raise exception 'idempotent operation identity changed'; end if;
 
+  -- Newly created canonical operations must traverse the lifecycle before reservation.
+  perform operations.transition(v_operation_id, 'created', 'authorized');
+  perform operations.transition(v_operation_id, 'authorized', 'queued');
+  select state into v_state from operations.operations where id = v_operation_id;
+  if v_state <> 'queued' then raise exception 'create-or-get operation did not reach queued state'; end if;
+
   begin
     perform * from operations.create_or_get(
       '00000000-0000-0000-0000-0000000000c6',
