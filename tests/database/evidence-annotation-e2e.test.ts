@@ -86,6 +86,12 @@ commit;`);
       const [evidenceId, decision] = out.split('\n').filter(Boolean).at(-2)?.split('|') ?? ['', ''];
       return [{ evidence_id: evidenceId, decision }] as T[];
     }
+    if (sql.includes('from operations.execution_outcomes')) {
+      const [operationId] = params;
+      const out = await psql(`${auth}\nselect row_to_json(t)::text from (select outcome,error_code,result_ref,result_hash,to_char(occurred_at at time zone 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') as occurred_at from operations.execution_outcomes where operation_id='${String(operationId)}'::uuid order by attempt_count desc limit 1) t;\nrollback;`);
+      const row = out.split('\n').find(line => line.startsWith('{'));
+      return (row ? [JSON.parse(row)] : []) as T[];
+    }
     if (sql.includes('operations.record_execution_outcome')) {
       const [operationId, attempt, outcome, errorCode, resultRef, resultHash, occurredAt] = params;
       const esc = (v: unknown) => v == null ? 'null' : `'${String(v).replaceAll("'", "''")}'`;
@@ -150,6 +156,17 @@ assert.equal(await psql(`select status from core.evidence_annotation_requests wh
 assert.equal(await psql(`select count(*) from core.evidence where source_id='${ids.source}' and resource_id='${ids.resource}'`), '1');
 assert.equal(await psql(`select count(*) from operations.execution_outcomes where operation_id='${ids.operation}'`), '1');
 assert.equal(await psql(`select count(*) from operations.execution_outbox where operation_id='${ids.operation}'`), '1');
+
+const replay = await coordinator.execute({
+  operationId: ids.operation, idempotencyKey: 'evidence-annotation-e2e',
+  action: 'annotate', resourceId: ids.resource, purpose: 'evidence annotation e2e',
+  state: 'acknowledged', createdAt: new Date().toISOString(), attemptCount: 1,
+  payloadRef: ids.request,
+});
+assert.equal(replay.executed, true);
+assert.equal(replay.outcome?.outcome, 'acknowledged');
+assert.equal(replay.outcome?.resultRef, (await psql(`select result_ref from operations.execution_outcomes where operation_id='${ids.operation}'`)));
+assert.equal(handlerEntries, 1, 'durable retry must not repeat evidence annotation mutation');
 
 const outsiderRead = await psql(`
 begin;
