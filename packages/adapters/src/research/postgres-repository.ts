@@ -57,7 +57,11 @@ function toQuery(row: ResearchQueryRow): ResearchQuery {
 }
 
 export class PostgresResearchQueryStore implements ResearchQueryStore {
-  constructor(private readonly db: SqlClient) {}
+  private readonly db: SqlClient;
+
+  constructor(db: SqlClient) {
+    this.db = db;
+  }
 
   async save(query: ResearchQuery): Promise<string> {
     const result = await this.db.query<{ id: string }>(
