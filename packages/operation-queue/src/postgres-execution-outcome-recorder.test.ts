@@ -37,7 +37,7 @@ const recorded = await recorder.record(operation, {
   resultHash: 'sha256:result-hash',
 });
 assert.deepEqual(recorded, { recorded: true, decision: 'recorded' });
-assert.match(calls[0].sql, /operations\\.record_execution_outcome/);
+assert.match(calls[0].sql, /operations\.record_execution_outcome/);
 
 const recovered = await recorder.findLatest(operation.operationId);
 assert.deepEqual(recovered, {
@@ -46,5 +46,5 @@ assert.deepEqual(recovered, {
   resultHash: 'sha256:result-hash',
   occurredAt: '2026-10-15T08:00:00.000Z',
 });
-assert.match(calls[1].sql, /operations\\.execution_outcomes/);
+assert.match(calls[1].sql, /operations\.execution_outcomes/);
 assert.deepEqual(calls[1].params, [operation.operationId]);
