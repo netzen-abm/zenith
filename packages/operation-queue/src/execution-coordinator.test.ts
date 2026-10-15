@@ -212,3 +212,38 @@ const lifecycleCoordinator = new ExecutionCoordinator(
 const lifecycleResult = await lifecycleCoordinator.execute(createdLifecycleOperation);
 assert.deepEqual(lifecycleResult, { executed: true, decision: 'allow' });
 assert.deepEqual(lifecycleCalls, ['created:authorized', 'authorized:queued']);
+
+
+// Newly created canonical operations traverse the persisted lifecycle before reservation.
+const lifecycleCalls: string[] = [];
+const createdLifecycleOperation: OperationEnvelope = {
+  ...operation,
+  operationId: 'op-created-lifecycle',
+  idempotencyKey: 'idem-created-lifecycle',
+  state: 'created',
+  attemptCount: 0,
+};
+const lifecycleCoordinator = new ExecutionCoordinator(
+  authorization,
+  {
+    async reserve(operationId) {
+      assert.equal(operationId, createdLifecycleOperation.operationId);
+      assert.deepEqual(lifecycleCalls, ['created:authorized', 'authorized:queued']);
+      return { allowed: true, decision: 'allow', attemptCount: 1 };
+    },
+  },
+  async (admitted) => {
+    assert.equal(admitted.state, 'queued');
+    return { outcome: 'acknowledged' };
+  },
+  { async record() { return { recorded: true, decision: 'recorded' }; } },
+  {
+    async transition(operationId, expectedState, nextState) {
+      assert.equal(operationId, createdLifecycleOperation.operationId);
+      lifecycleCalls.push(expectedState + ':' + nextState);
+    },
+  },
+);
+const lifecycleResult = await lifecycleCoordinator.execute(createdLifecycleOperation);
+assert.deepEqual(lifecycleResult, { executed: true, decision: 'allow' });
+assert.deepEqual(lifecycleCalls, ['created:authorized', 'authorized:queued']);
