@@ -83,7 +83,7 @@ const coordinator = (
   const recorder = new RecordingOutcome();
   const seen: OperationEnvelope[] = [];
   const result = await coordinator(new AllowAuthorization(), new AllowReservation(), recorder, op => seen.push(op)).execute(operation);
-  assert.deepEqual(result, { executed: true, decision: 'allow' });
+  assert.deepEqual(result, { executed: true, decision: 'allow', outcome: { outcome: 'acknowledged' } });
   assert.equal(seen.length, 1);
   assert.equal(seen[0].attemptCount, 1);
   assert.equal(recorder.calls.length, 1);
