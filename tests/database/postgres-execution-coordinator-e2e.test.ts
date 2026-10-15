@@ -85,6 +85,12 @@ rollback;`);
       if (!output.includes('transitioned')) throw new Error(`operation_transition_result_not_found: ${output}`);
       return [{ transition: 'transitioned' }] as T[];
     }
+    if (sql.includes('from operations.execution_outcomes')) {
+      const [id] = params;
+      const output = await psql(`begin;\\nset local role authenticated;\\nselect set_config('request.jwt.claim.sub','${authUserId}',true);\\nselect set_config('app.identity_id','${identityId}',true);\\nselect set_config('app.organisation_id','${organisationId}',true);\\nselect row_to_json(t)::text from (select outcome,error_code,result_ref,result_hash,to_char(occurred_at at time zone 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') as occurred_at from operations.execution_outcomes where operation_id = '${String(id)}'::uuid order by attempt_count desc limit 1) t;\\ncommit;`);
+      const line = output.split('\\n').find(entry => entry.startsWith('{'));
+      return (line ? [JSON.parse(line)] : []) as T[];
+    }
     if (sql.includes('operations.record_execution_outcome')) {
       const [id, attempt, outcome, errorCode, resultRef, resultHash, occurredAt] = params;
       const esc = (value: unknown) => value === null || value === undefined ? 'null' : "'" + String(value).replaceAll("'", "''") + "'";
@@ -340,12 +346,14 @@ const lifecycleCoordinator = new ExecutionCoordinator(
   lifecycleStore,
 );
 const lifecycleResult = await lifecycleCoordinator.execute(lifecycleOperation);
-assert.deepEqual(lifecycleResult, { executed: true, decision: 'allow' });
+assert.deepEqual(lifecycleResult, { executed: true, decision: 'allow', outcome: { outcome: 'acknowledged', resultRef: 'lifecycle-provider-result', occurredAt: lifecycleResult.outcome?.occurredAt } });
 assert.equal(lifecycleHandlerEntries, 1);
 assert.equal(await psql(`select state || '|' || attempt_count from operations.operations where id = '${lifecycleOperationId}'`), 'acknowledged|1');
 assert.equal(await psql(`select count(*) from operations.execution_outcomes where operation_id = '${lifecycleOperationId}'`), '1');
 const lifecycleRetry = await lifecycleCoordinator.execute({ ...lifecycleOperation, state: 'acknowledged', attemptCount: 1 });
-assert.deepEqual(lifecycleRetry, { executed: false, decision: 'deny_reservation' });
+assert.equal(lifecycleRetry.executed, true);
+assert.equal(lifecycleRetry.outcome?.outcome, 'acknowledged');
+assert.equal(lifecycleRetry.outcome?.resultRef, 'lifecycle-provider-result');
 assert.equal(lifecycleHandlerEntries, 1, 'duplicate lifecycle request must not re-enter provider handler');
 await psql(`delete from operations.execution_outbox where operation_id = '${lifecycleOperationId}';\ndelete from operations.execution_outcomes where operation_id = '${lifecycleOperationId}';\ndelete from operations.operations where id = '${lifecycleOperationId}';`);
 console.log('PostgreSQL lifecycle-before-reservation and duplicate non-replay assertions passed.');
