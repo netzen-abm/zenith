@@ -7,6 +7,17 @@ import type { ResearchQueryStore } from './research/repository.ts';
 
 export type ResearchExecutionContext = { authorization: ExecutionAuthorization; reservation: ExecutionReservation; outcomeRecorder: ExecutionOutcomeRecorder; operationStore: OperationStore };
 
+function canonicalizePayload(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalizePayload);
+  if (value !== null && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.keys(record).sort().map(key => [key, canonicalizePayload(record[key])]),
+    );
+  }
+  return value;
+}
+
 function sameResearchQuery(a: ResearchQuery, b: ResearchQuery): boolean {
   const normalize = (q: ResearchQuery) => ({
     queryId: q.queryId, researchQuestionId: q.researchQuestionId ?? null,
@@ -15,7 +26,7 @@ function sameResearchQuery(a: ResearchQuery, b: ResearchQuery): boolean {
     requestedFields: q.requestedFields ?? [], openAccessRequired: q.openAccessRequired ?? false,
     requesterIdentityId: q.requesterIdentityId, organisationId: q.organisationId, purpose: q.purpose,
   });
-  return JSON.stringify(normalize(a)) === JSON.stringify(normalize(b));
+  return JSON.stringify(canonicalizePayload(normalize(a))) === JSON.stringify(canonicalizePayload(normalize(b)));
 }
 
 export class ResearchOperation {
@@ -55,7 +66,16 @@ export class ResearchOperation {
       return resolved.operation;
     });
     if (!result.executed) throw new Error('research_not_executed:' + result.decision);
-    return canonicalOperation;
+    const outcomeState = result.outcome?.outcome === 'acknowledged' ? 'acknowledged'
+      : result.outcome?.outcome === 'retry_wait' ? 'retry_wait'
+      : result.outcome?.outcome === 'conflict' ? 'conflict'
+      : result.outcome?.outcome === 'rejected' ? 'rejected'
+      : canonicalOperation.state;
+    return {
+      ...canonicalOperation,
+      state: outcomeState,
+      ...(result.outcome?.resultRef ? { resultRef: result.outcome.resultRef } : {}),
+    };
   }
 
   private createOperation(query: ResearchQuery): OperationEnvelope {

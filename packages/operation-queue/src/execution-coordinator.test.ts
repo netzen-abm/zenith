@@ -210,6 +210,32 @@ const lifecycleCoordinator = new ExecutionCoordinator(
   },
 );
 const lifecycleResult = await lifecycleCoordinator.execute(createdLifecycleOperation);
-assert.deepEqual(lifecycleResult, { executed: true, decision: 'allow' });
+assert.deepEqual(lifecycleResult, { executed: true, decision: 'allow', outcome: { outcome: 'acknowledged' } });
 assert.deepEqual(lifecycleCalls, ['created:authorized', 'authorized:queued']);
 
+
+
+// A durable prior outcome wins over reservation: retries return the recorded result
+// without re-entering the provider handler.
+let replayReservationCalls = 0;
+let replayHandlerCalls = 0;
+const replayCoordinator = new ExecutionCoordinator(
+  authorization,
+  { reserve: async () => { replayReservationCalls += 1; return { allowed: true, decision: 'allow' }; } },
+  async () => { replayHandlerCalls += 1; return { outcome: 'acknowledged' }; },
+  {
+    async record() { throw new Error('replay_must_not_record_again'); },
+    async findLatest(operationId) {
+      assert.equal(operationId, operation.operationId);
+      return { outcome: 'acknowledged', resultRef: 'durable:research-result-1' };
+    },
+  },
+);
+const replayResult = await replayCoordinator.execute(operation);
+assert.deepEqual(replayResult, {
+  executed: true,
+  decision: 'allow',
+  outcome: { outcome: 'acknowledged', resultRef: 'durable:research-result-1' },
+});
+assert.equal(replayReservationCalls, 0);
+assert.equal(replayHandlerCalls, 0);
