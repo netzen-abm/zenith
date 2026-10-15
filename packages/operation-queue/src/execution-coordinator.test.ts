@@ -210,7 +210,7 @@ const lifecycleCoordinator = new ExecutionCoordinator(
   },
 );
 const lifecycleResult = await lifecycleCoordinator.execute(createdLifecycleOperation);
-assert.deepEqual(lifecycleResult, { executed: true, decision: 'allow' });
+assert.deepEqual(lifecycleResult, { executed: true, decision: 'allow', outcome: { outcome: 'acknowledged' } });
 assert.deepEqual(lifecycleCalls, ['created:authorized', 'authorized:queued']);
 
 
