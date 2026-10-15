@@ -432,7 +432,7 @@ await assert.rejects(
 );
 assert.equal(researchProviderCalls, 1, 'changed payload must fail before provider execution');
 assert.equal(await psql(`select state || '|' || attempt_count from operations.operations where id = '${canonicalResearchOperationId}'`), 'acknowledged|1');
-assert.equal(await psql(`select count(*) from operations.execution_outcomes where operation_id = '${researchOperationId}'`), '1');
+assert.equal(await psql(`select count(*) from operations.execution_outcomes where operation_id = '${canonicalResearchOperationId}'`), '1');
 await psql(`
 delete from operations.execution_outbox where operation_id in (select id from operations.operations where idempotency_key = '${researchQueryId}');
 delete from operations.execution_outcomes where operation_id in (select id from operations.operations where idempotency_key = '${researchQueryId}');
