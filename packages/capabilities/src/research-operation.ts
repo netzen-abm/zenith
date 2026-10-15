@@ -55,7 +55,9 @@ export class ResearchOperation {
       return resolved.operation;
     });
     if (!result.executed) throw new Error('research_not_executed:' + result.decision);
-    return canonicalOperation;
+    return result.outcome?.resultRef
+      ? { ...canonicalOperation, resultRef: result.outcome.resultRef }
+      : canonicalOperation;
   }
 
   private createOperation(query: ResearchQuery): OperationEnvelope {
