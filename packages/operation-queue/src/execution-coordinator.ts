@@ -12,10 +12,12 @@ export interface ExecutionAuthorization { authorize(operation: OperationEnvelope
 export interface ExecutionReservation { reserve(operationId: string): Promise<ReservationResult>; }
 export interface ExecutionOutcomeRecorder {
   record(operation: OperationEnvelope, outcome: ExecutionOutcome): Promise<DurableOutcomeResult>;
+  /** Return the latest durable outcome for an already-resolved canonical operation, if available. */
+  findLatest?(operationId: string): Promise<ExecutionOutcome | undefined>;
 }
 export type ExecutionPreparation = (operation: OperationEnvelope) => Promise<OperationEnvelope | void>;
 export type ExecutionHandler = (operation: OperationEnvelope) => Promise<ExecutionOutcome>;
-export type ExecutionResult = { executed: boolean; decision: ExecutionDecision };
+export type ExecutionResult = { executed: boolean; decision: ExecutionDecision; outcome?: ExecutionOutcome };
 
 export class ExecutionCoordinator {
   private readonly authorization: ExecutionAuthorization;
@@ -49,6 +51,14 @@ export class ExecutionCoordinator {
     let admittedOperation = operation;
     if (preparation) {
       admittedOperation = (await preparation(operation)) ?? operation;
+    }
+
+    // Recover a previously committed outcome before attempting reservation. This is
+    // the lost-response path: a duplicate request must return durable evidence, not
+    // re-enter a provider or fail merely because the operation is already terminal.
+    const priorOutcome = await this.outcomeRecorder.findLatest?.(admittedOperation.operationId);
+    if (priorOutcome) {
+      return { executed: true, decision: 'allow', outcome: priorOutcome };
     }
 
     // New canonical operations start at created. Advance them through the existing
@@ -92,6 +102,6 @@ export class ExecutionCoordinator {
       if (handlerFailure instanceof Error) throw handlerFailure;
       throw new Error('execution_handler_failed:conflict_outcome_recorded');
     }
-    return { executed: true, decision: 'allow' };
+    return { executed: true, decision: 'allow', outcome };
   }
 }
