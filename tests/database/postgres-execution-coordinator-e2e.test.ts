@@ -88,6 +88,13 @@ rollback;`);
       if (!output.includes('transitioned')) throw new Error(`operation_transition_result_not_found: ${output}`);
       return [{ transition: 'transitioned' }] as T[];
     }
+    if (sql.includes('operations.create_or_get_with_payload_hash')) {
+      const [opId, orgId, key, action, identity, purpose, expires, resourceId, payloadRef, payloadIdentity] = params;
+      const lit = (value: unknown) => value === null || value === undefined ? 'null' : "'" + String(value).replaceAll("'", "''") + "'";
+      const output = await psql(`begin;\nset local role authenticated;\nselect set_config('request.jwt.claim.sub','${authUserId}',true);\nselect set_config('app.identity_id','${identityId}',true);\nselect set_config('app.organisation_id','${organisationId}',true);\nselect row_to_json(t)::text from (select * from operations.create_or_get_with_payload_hash(${lit(opId)}::uuid,${lit(orgId)}::uuid,${lit(key)},${lit(action)},${lit(identity)}::uuid,${lit(purpose)},${lit(expires)}::timestamptz,${lit(resourceId)}::uuid,${lit(payloadRef)},${lit(payloadIdentity)}::jsonb)) t;\ncommit;`);
+      const line = output.split('\n').find(entry => entry.startsWith('{'));
+      return (line ? [JSON.parse(line)] : []) as T[];
+    }
     if (sql.includes('operations.create_or_get(')) {
       const [opId, orgId, key, action, identity, purpose, expires, payloadRef] = params;
       const lit = (value: unknown) => value === null || value === undefined ? 'null' : "'" + String(value).replaceAll("'", "''") + "'";
@@ -429,7 +436,7 @@ assert.equal(researchRetry.resultRef, researchFirst.resultRef);
 assert.equal(researchProviderCalls, 1, 'fresh ResearchOperation instance must replay durable result without a second provider call');
 await assert.rejects(
   () => buildResearchOperation().execute({ ...researchQuery, text: 'changed payload must conflict' }),
-  /research_query_id_conflict/,
+  /operation_idempotency_conflict/,
 );
 assert.equal(researchProviderCalls, 1, 'changed payload must fail before provider execution');
 assert.equal(await psql(`select state || '|' || attempt_count from operations.operations where id = '${canonicalResearchOperationId}'`), 'acknowledged|1');
