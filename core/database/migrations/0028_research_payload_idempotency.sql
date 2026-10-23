@@ -144,14 +144,14 @@ begin
   from operations.operations o
   where o.organisation_id = core.current_organisation_id()
     and (
-      (p_action = 'research.query' and lower(btrim(o.idempotency_key)) = lower(btrim(p_idempotency_key))
-        and o.action = 'research.query')
+      (p_action = 'research.query' and lower(btrim(o.idempotency_key)) = lower(btrim(p_idempotency_key)))
       or (p_action <> 'research.query' and o.idempotency_key = p_idempotency_key)
     )
   for update;
 
   if found then
     if p_action = 'research.query'
+       and v_operation.action = p_action
        and v_operation.payload_hash is null
        and v_operation.state = 'created'
        and v_operation.attempt_count = 0

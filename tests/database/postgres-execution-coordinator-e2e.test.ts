@@ -503,8 +503,8 @@ delete from core.research_query_requests where id = '${legacyResearchQueryId}';
 insert into operations.operations(
   id,organisation_id,identity_id,idempotency_key,action,resource_id,purpose,expires_at,payload_ref
 ) values (
-  '${legacyResearchOperationId}','${organisationId}','${identityId}','${legacyResearchQueryId}',
-  'research.query',null,'research-e2e',clock_timestamp()+interval '10 minutes','${legacyResearchQueryId}'
+  '${legacyResearchOperationId}','${organisationId}','${identityId}','${legacyResearchQueryId.toUpperCase()}',
+  'research.query',null,'research-e2e',clock_timestamp()+interval '10 minutes','${legacyResearchQueryId.toUpperCase()}'
 );
 `);
 const legacyProviderCallsBefore = researchProviderCalls;

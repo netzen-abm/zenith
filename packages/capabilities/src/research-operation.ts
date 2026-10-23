@@ -20,8 +20,8 @@ function canonicalizePayload(value: unknown): unknown {
 
 function normalizeResearchQuery(query: ResearchQuery): Record<string, unknown> {
   return {
-    queryId: query.queryId.toLowerCase(),
-    researchQuestionId: query.researchQuestionId?.toLowerCase() ?? null,
+    queryId: query.queryId.trim().toLowerCase(),
+    researchQuestionId: query.researchQuestionId?.trim().toLowerCase() ?? null,
     intent: query.intent,
     text: query.text,
     concepts: query.concepts ?? [],
@@ -31,8 +31,8 @@ function normalizeResearchQuery(query: ResearchQuery): Record<string, unknown> {
     cursor: query.cursor ?? null,
     requestedFields: query.requestedFields ?? [],
     openAccessRequired: query.openAccessRequired ?? false,
-    requesterIdentityId: query.requesterIdentityId.toLowerCase(),
-    organisationId: query.organisationId.toLowerCase(),
+    requesterIdentityId: query.requesterIdentityId.trim().toLowerCase(),
+    organisationId: query.organisationId.trim().toLowerCase(),
     purpose: query.purpose,
   };
 }
@@ -42,8 +42,8 @@ function researchPayloadIdentity(query: ResearchQuery): Record<string, unknown> 
   const normalized = normalizeResearchQuery(query);
   return {
     action: 'research.query',
-    organisationId: query.organisationId.toLowerCase(),
-    identityId: query.requesterIdentityId.toLowerCase(),
+    organisationId: query.organisationId.trim().toLowerCase(),
+    identityId: query.requesterIdentityId.trim().toLowerCase(),
     purpose: query.purpose,
     resourceId: null,
     ...normalized,
