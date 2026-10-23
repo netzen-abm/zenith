@@ -28,3 +28,20 @@ assert.equal(queries[0].params[0], 'write');
 assert.equal(queries[0].params[1], operation.resourceId);
 assert.equal(operation.action, 'space_time.spatial_representation_create', 'policy translation must not mutate operation identity');
 console.log('postgres-core-authorization Space-Time policy mapping: PASS');
+
+
+const researchOperation: OperationEnvelope = {
+  operationId: '00000000-0000-0000-0000-0000000003b5',
+  idempotencyKey: 'research-auth-policy-adapter-test',
+  action: 'research.query',
+  organisationId: '00000000-0000-0000-0000-0000000003b3',
+  identityId: '00000000-0000-0000-0000-0000000003b4',
+  purpose: 'archaeological research',
+  state: 'queued',
+  createdAt: new Date().toISOString(),
+};
+assert.equal(await authorization.authorize(researchOperation), true);
+assert.equal(queries[1].params[0], 'discover');
+assert.equal(queries[1].params[1], null);
+assert.equal(researchOperation.action, 'research.query', 'authorization translation must preserve domain action identity');
+console.log('postgres-core-authorization Research policy mapping: PASS');

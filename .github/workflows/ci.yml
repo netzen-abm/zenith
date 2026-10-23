@@ -135,6 +135,15 @@ jobs:
           grep -Fq "v_operation.action = 'research.query' then 'discover'" "$research_file"
           grep -Fq "revoke all on function operations.reserve_execution(uuid) from public, anon" "$research_file"
           grep -Fq "grant execute on function operations.reserve_execution(uuid) to authenticated" "$research_file"
+          hash_file="core/database/migrations/0028_research_payload_idempotency.sql"
+          test -f "$hash_file"
+          grep -Eqi "security definer" "$hash_file"
+          grep -Fq "set search_path = ''" "$hash_file"
+          grep -Fq "p_action = 'research.query'" "$hash_file"
+          grep -Fq "p_payload_identity->>'queryId'" "$hash_file"
+          grep -Fq "v_operation.payload_hash is distinct from v_payload_hash" "$hash_file"
+          grep -Fq "revoke all on function operations.create_or_get_with_payload_hash" "$hash_file"
+          grep -Fq "grant execute on function operations.create_or_get_with_payload_hash" "$hash_file"
 
       - name: Validate explicit migration inventory and order
         shell: bash
@@ -193,6 +202,12 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/zenith
         run: node --experimental-strip-types tests/database/postgres-execution-coordinator-e2e.test.ts
+
+      - name: Run Research idempotency/ambiguity PostgreSQL E2E (mandatory)
+        shell: bash
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/zenith
+        run: node --experimental-strip-types tests/database/research-operation-postgres-e2e.test.ts
 
       - name: Run Space-Time mutation/outcome recovery PostgreSQL E2E (mandatory)
         shell: bash
@@ -291,7 +306,7 @@ jobs:
             done
             return 1
           }
-          mapfile -t branches < <(gh api "repos/$REPO/branches?per_page=100" --jq '.[].name' | sort -u)
+          mapfile -t branches < <(gh api --paginate "repos/$REPO/branches?per_page=100" --jq '.[].name' | sort -u)
           unexpected=0
           for branch in "${branches[@]}"; do
             if is_protected "$branch"; then

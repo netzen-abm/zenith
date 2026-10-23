@@ -15,14 +15,19 @@ export class PostgresOperationStore implements OperationStore {
 
   async createOrGet(input: CreateOrGetOperationInput): Promise<CreateOrGetOperationResult> {
     const hashAware = input.payloadIdentity !== undefined;
-    if (hashAware && !input.resourceId) throw new Error('operation_payload_identity_requires_resource_id');
+    if (hashAware && input.action === 'research.query' && input.resourceId) {
+      throw new Error('research_payload_identity_must_not_have_resource_id');
+    }
+    if (hashAware && input.action !== 'research.query' && !input.resourceId) {
+      throw new Error('operation_payload_identity_requires_resource_id');
+    }
     const sql = hashAware
       ? 'select * from operations.create_or_get_with_payload_hash($1::uuid,$2::uuid,$3,$4,$5::uuid,$6,$7::timestamptz,$8::uuid,$9,$10::jsonb)'
       : 'select * from operations.create_or_get($1::uuid,$2::uuid,$3,$4,$5::uuid,$6,$7::timestamptz,$8)';
     const params = hashAware
       ? [
           input.operationId, input.organisationId, input.idempotencyKey, input.action, input.identityId,
-          input.purpose, input.expiresAt, input.resourceId, input.payloadRef ?? null, JSON.stringify(input.payloadIdentity),
+          input.purpose, input.expiresAt, input.resourceId ?? null, input.payloadRef ?? null, JSON.stringify(input.payloadIdentity),
         ]
       : [
           input.operationId, input.organisationId, input.idempotencyKey, input.action, input.identityId,

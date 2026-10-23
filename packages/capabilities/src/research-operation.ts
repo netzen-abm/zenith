@@ -18,15 +18,41 @@ function canonicalizePayload(value: unknown): unknown {
   return value;
 }
 
+function normalizeResearchQuery(query: ResearchQuery): Record<string, unknown> {
+  return {
+    queryId: query.queryId.toLowerCase(),
+    researchQuestionId: query.researchQuestionId?.toLowerCase() ?? null,
+    intent: query.intent,
+    text: query.text,
+    concepts: query.concepts ?? [],
+    filters: query.filters ?? {},
+    sort: query.sort ?? [],
+    pageSize: query.pageSize,
+    cursor: query.cursor ?? null,
+    requestedFields: query.requestedFields ?? [],
+    openAccessRequired: query.openAccessRequired ?? false,
+    requesterIdentityId: query.requesterIdentityId.toLowerCase(),
+    organisationId: query.organisationId.toLowerCase(),
+    purpose: query.purpose,
+  };
+}
+
+/** Immutable canonical identity persisted with the operation before handler admission. */
+function researchPayloadIdentity(query: ResearchQuery): Record<string, unknown> {
+  const normalized = normalizeResearchQuery(query);
+  return {
+    action: 'research.query',
+    organisationId: query.organisationId.toLowerCase(),
+    identityId: query.requesterIdentityId.toLowerCase(),
+    purpose: query.purpose,
+    resourceId: null,
+    ...normalized,
+  };
+}
+
 function sameResearchQuery(a: ResearchQuery, b: ResearchQuery): boolean {
-  const normalize = (q: ResearchQuery) => ({
-    queryId: q.queryId, researchQuestionId: q.researchQuestionId ?? null,
-    intent: q.intent, text: q.text, concepts: q.concepts ?? [], filters: q.filters ?? {},
-    sort: q.sort ?? [], pageSize: q.pageSize, cursor: q.cursor ?? null,
-    requestedFields: q.requestedFields ?? [], openAccessRequired: q.openAccessRequired ?? false,
-    requesterIdentityId: q.requesterIdentityId, organisationId: q.organisationId, purpose: q.purpose,
-  });
-  return JSON.stringify(canonicalizePayload(normalize(a))) === JSON.stringify(canonicalizePayload(normalize(b)));
+  return JSON.stringify(canonicalizePayload(normalizeResearchQuery(a))) ===
+    JSON.stringify(canonicalizePayload(normalizeResearchQuery(b)));
 }
 
 export class ResearchOperation {
@@ -54,7 +80,8 @@ export class ResearchOperation {
         identityId: query.requesterIdentityId,
         purpose: query.purpose,
         expiresAt: operation.expiresAt!,
-        payloadRef: query.queryId,
+        payloadRef: query.queryId.trim().toLowerCase(),
+        payloadIdentity: researchPayloadIdentity(query),
       });
       canonicalOperation = resolved.operation;
       const existingQuery = await this.store.get(query.queryId, query.organisationId);
@@ -80,7 +107,8 @@ export class ResearchOperation {
 
   private createOperation(query: ResearchQuery): OperationEnvelope {
     const id = randomUUID();
-    return { operationId: id, idempotencyKey: query.queryId, action: 'research.query', organisationId: query.organisationId, identityId: query.requesterIdentityId, purpose: query.purpose, state: 'created', createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), attemptCount: 0, payloadRef: query.queryId };
+    const canonicalQueryId = query.queryId.trim().toLowerCase();
+    return { operationId: id, idempotencyKey: canonicalQueryId, action: 'research.query', organisationId: query.organisationId, identityId: query.requesterIdentityId, purpose: query.purpose, state: 'created', createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), attemptCount: 0, payloadRef: canonicalQueryId };
   }
 
   private async handle(operation: OperationEnvelope) {

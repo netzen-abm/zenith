@@ -19,7 +19,9 @@ export class PostgresCoreAuthorization implements ExecutionAuthorization {
     // policy boundary currently accepts generic read/write intent.
     const policyAction = operation.action === 'space_time.spatial_representation_create'
       ? 'write'
-      : operation.action;
+      : operation.action === 'research.query'
+        ? 'discover'
+        : operation.action;
     const rows = await this.db.query<AuthorizationRow>(
       'select allowed, decision from core.authorize_capability($1, $2::uuid, $3)',
       [policyAction, operation.resourceId ?? null, operation.purpose],
