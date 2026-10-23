@@ -410,6 +410,49 @@ const researchStore = new PostgresResearchQueryStore({
   },
 });
 const realOperationStore = new PostgresOperationStore(db);
+
+// Database trust-boundary assertion: callers cannot bind a query payload to another key.
+const invalidResearchOperationId = '00000000-0000-0000-0000-0000000000f7';
+const invalidResearchQueryId = '00000000-0000-0000-0000-0000000000f8';
+const invalidResearchPayloadIdentity = {
+  action: 'research.query',
+  organisationId: organisationId.toLowerCase(),
+  identityId: identityId.toLowerCase(),
+  purpose: 'research-e2e',
+  resourceId: null,
+  queryId: invalidResearchQueryId,
+  researchQuestionId: null,
+  intent: 'discover',
+  text: 'Pattanam archaeology',
+  concepts: ['archaeology'],
+  filters: { region: 'Kerala', period: { start: 1, end: 100 } },
+  sort: ['relevance'],
+  pageSize: 10,
+  cursor: null,
+  requestedFields: ['title'],
+  openAccessRequired: false,
+  requesterIdentityId: identityId.toLowerCase(),
+};
+await assert.rejects(
+  () => realOperationStore.createOrGet({
+    operationId: invalidResearchOperationId,
+    organisationId,
+    idempotencyKey: 'not-the-query-id',
+    action: 'research.query',
+    identityId,
+    purpose: 'research-e2e',
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    payloadRef: invalidResearchQueryId,
+    payloadIdentity: invalidResearchPayloadIdentity,
+  }),
+  /research_payload_identity_invalid/,
+);
+assert.equal(
+  await psql(`select count(*) from operations.operations where id = '${invalidResearchOperationId}'`),
+  '0',
+  'malformed idempotency identity must fail before inserting an operation',
+);
+
 const realResearchProvider = {
   providerId: 'e2e-fixture', adapterVersion: '1',
   async search(query: ResearchQuery) {
@@ -448,6 +491,43 @@ delete from operations.operations where idempotency_key = '${researchQueryId}';
 delete from core.research_query_requests where id = '${researchQueryId}';
 `);
 console.log('PostgreSQL Research idempotent replay and payload-conflict E2E assertions passed.');
+
+// Recover an untouched legacy operation created before its Research query was persisted.
+const legacyResearchQueryId = '00000000-0000-0000-0000-0000000000f8';
+const legacyResearchOperationId = '00000000-0000-0000-0000-0000000000f9';
+await psql(`
+delete from operations.execution_outbox where operation_id = '${legacyResearchOperationId}';
+delete from operations.execution_outcomes where operation_id = '${legacyResearchOperationId}';
+delete from operations.operations where id = '${legacyResearchOperationId}';
+delete from core.research_query_requests where id = '${legacyResearchQueryId}';
+insert into operations.operations(
+  id,organisation_id,identity_id,idempotency_key,action,resource_id,purpose,expires_at,payload_ref
+) values (
+  '${legacyResearchOperationId}','${organisationId}','${identityId}','${legacyResearchQueryId}',
+  'research.query',null,'research-e2e',clock_timestamp()+interval '10 minutes','${legacyResearchQueryId}'
+);
+`);
+const legacyProviderCallsBefore = researchProviderCalls;
+const legacyResearchQuery = { ...researchQuery, queryId: legacyResearchQueryId, text: 'legacy unpersisted Research query' };
+const legacyResearchResult = await buildResearchOperation().execute(legacyResearchQuery);
+assert.equal(legacyResearchResult.operationId, legacyResearchOperationId);
+assert.equal(legacyResearchResult.state, 'acknowledged');
+assert.equal(researchProviderCalls, legacyProviderCallsBefore + 1, 'legacy row with no side effect is recovered exactly once');
+assert.equal(
+  await psql(`select payload_hash is not null from operations.operations where id = '${legacyResearchOperationId}'`),
+  't',
+  'legacy orphan must be bound to the canonical payload hash before execution',
+);
+const legacyResearchReplay = await buildResearchOperation().execute({ ...legacyResearchQuery });
+assert.equal(legacyResearchReplay.operationId, legacyResearchOperationId);
+assert.equal(researchProviderCalls, legacyProviderCallsBefore + 1, 'durable legacy recovery replay must not rerun provider');
+await psql(`
+delete from operations.execution_outbox where operation_id = '${legacyResearchOperationId}';
+delete from operations.execution_outcomes where operation_id = '${legacyResearchOperationId}';
+delete from operations.operations where id = '${legacyResearchOperationId}';
+delete from core.research_query_requests where id = '${legacyResearchQueryId}';
+`);
+console.log('PostgreSQL legacy Research pre-persistence recovery assertions passed.');
 
 // Research-specific ambiguity proof against real PostgreSQL persistence:
 // the provider succeeds, durable recording fails, and a fresh operation instance
