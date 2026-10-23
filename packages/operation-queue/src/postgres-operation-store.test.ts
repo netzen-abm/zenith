@@ -98,7 +98,7 @@ const researchHashed = await researchHashStore.createOrGet({
   payloadRef: researchQueryId,
   payloadIdentity: researchPayloadIdentity,
 });
-assert.match(researchHashCalls[0].sql, /operations\\.create_or_get_with_payload_hash/);
+assert.ok(researchHashCalls[0].sql.includes('operations.create_or_get_with_payload_hash'));
 assert.equal(researchHashCalls[0].params[7], null);
 assert.equal(researchHashCalls[0].params[8], researchQueryId);
 assert.deepEqual(JSON.parse(String(researchHashCalls[0].params[9])), researchPayloadIdentity);

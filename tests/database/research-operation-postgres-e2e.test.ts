@@ -45,7 +45,7 @@ commit;`;
 }
 
 function jsonRow(output: string): Record<string, unknown>[] {
-  const line = output.split('\\n').map(value => value.trim()).find(value => value.startsWith('{'));
+  const line = output.split(/\r?\n/).map(value => value.trim()).find(value => value.startsWith('{'));
   return line ? [JSON.parse(line) as Record<string, unknown>] : [];
 }
 
@@ -56,8 +56,8 @@ const db = {
       const resourceId = params[1] == null ? 'null::uuid' : `${literal(params[1])}::uuid`;
       const purpose = literal(params[2]);
       const output = await psql(contextSql(`select allowed::text || '|' || decision
-        from core.authorize_capability(${action},${resourceId},${purpose});\\nrollback;`).replace('commit;\\nrollback;', 'rollback;'));
-      const line = output.split('\\n').find(value => /^(true|false)\\|/.test(value));
+        from core.authorize_capability(${action},${resourceId},${purpose});`));
+      const line = output.split(/\r?\n/).find(value => value.startsWith('true|') || value.startsWith('false|'));
       if (!line) throw new Error(`research_e2e_authorization_result_missing:${output}`);
       const [allowed, decision] = line.split('|');
       return [{ allowed: allowed === 'true', decision }] as T[];
@@ -86,7 +86,7 @@ const db = {
       const [operationId] = params;
       const output = await psql(contextSql(`select allowed::text || '|' || decision || '|' || coalesce(attempt_count::text,'null')
         from operations.reserve_execution(${literal(operationId)}::uuid);`));
-      const line = output.split('\\n').find(value => /^(true|false)\\|/.test(value));
+      const line = output.split(/\r?\n/).find(value => value.startsWith('true|') || value.startsWith('false|'));
       if (!line) throw new Error(`research_e2e_reservation_result_missing:${output}`);
       const [allowed, decision, attemptCount] = line.split('|');
       return [{ allowed: allowed === 'true', decision, ...(attemptCount !== 'null' ? { attempt_count: Number(attemptCount) } : {}) }] as T[];
@@ -99,7 +99,7 @@ const db = {
           ${literal(operationId)}::uuid,${Number(attempt)},${literal(outcome)},${literal(errorCode)},
           ${literal(resultRef)},${literal(resultHash)},${literal(occurredAt)}::timestamptz
         );`));
-      const line = output.split('\\n').find(value => /^(true|false)\\|/.test(value));
+      const line = output.split(/\r?\n/).find(value => value.startsWith('true|') || value.startsWith('false|'));
       if (!line) throw new Error(`research_e2e_outcome_record_result_missing:${output}`);
       const [recorded, decision] = line.split('|');
       return [{ recorded: recorded === 'true', decision }] as T[];
@@ -125,7 +125,7 @@ const db = {
          ${literal(v[4])},${literal(v[5])},${literal(v[6])}::jsonb,${literal(v[7])}::jsonb,${literal(v[8])}::jsonb,
          ${Number(v[9])},${literal(v[10])},${literal(v[11])}::jsonb,${literal(v[12])},${literal(v[13])})
         returning id;`;
-      const output = await psql(contextSql(`select row_to_json(t)::text from (${statement.replace(/;$/, '')}) t;`));
+      const output = await psql(contextSql(`with inserted as (${statement.replace(/;$/, '')}) select row_to_json(inserted)::text from inserted;`));
       return jsonRow(output) as T[];
     }
 
