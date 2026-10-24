@@ -94,12 +94,7 @@ rollback;`);
       const lit = (value: unknown) => value === null || value === undefined ? 'null' : "'" + String(value).replaceAll("'", "''") + "'";
       const output = await psql(`begin;\nset local role authenticated;\nselect set_config('request.jwt.claim.sub','${authUserId}',true);\nselect set_config('app.identity_id','${identityId}',true);\nselect set_config('app.organisation_id','${organisationId}',true);\nselect row_to_json(t)::text from (select * from operations.create_or_get_with_payload_hash(${lit(opId)}::uuid,${lit(orgId)}::uuid,${lit(key)},${lit(action)},${lit(identity)}::uuid,${lit(purpose)},${lit(expires)}::timestamptz,${lit(resourceId)}::uuid,${lit(payloadRef)},${lit(payloadIdentity)}::jsonb)) t;\ncommit;`);
       const line = output.split('\n').find(entry => entry.startsWith('{'));
-      if (!line) throw new Error('research_result_snapshot_write_no_row:' + output);
-      const row = JSON.parse(line) as Record<string, unknown>;
-      if (!row.result_set_id || !row.result_hash) {
-        throw new Error('research_result_snapshot_write_shape_invalid:' + Object.keys(row).sort().join(','));
-      }
-      return [row] as T[];
+      return (line ? [JSON.parse(line)] : []) as T[];
     }
     if (sql.includes('operations.create_or_get(')) {
       const [opId, orgId, key, action, identity, purpose, expires, payloadRef] = params;
