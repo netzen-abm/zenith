@@ -131,15 +131,9 @@ export class ResearchOperation {
   private async handle(operation: OperationEnvelope) {
     const query = operation.payloadRef ? await this.store.get(operation.payloadRef, operation.organisationId ?? '') : undefined;
     if (!query) return { outcome: 'rejected' as const, errorCode: 'research_query_not_found' };
+    let result: Awaited<ReturnType<ResearchProvider['search']>>;
     try {
-      const result = await this.provider.search(query);
-      if (this.context.resultStore) {
-        const saved = await this.context.resultStore.save(operation, query, this.provider, result);
-        return { outcome: 'acknowledged' as const, resultRef: saved.resultSetId, resultHash: saved.resultHash };
-      }
-      // Transitional compatibility for test/preview compositions. Production compositions
-      // must inject a durable ResearchResultStore before exposing a provider result.
-      return { outcome: 'acknowledged' as const, resultRef: result.providerQueryReference };
+      result = await this.provider.search(query);
     } catch (error) {
       if (error instanceof ResearchProviderError) {
         return {
@@ -149,5 +143,15 @@ export class ResearchOperation {
       }
       return { outcome: 'retry_wait' as const, errorCode: 'research_provider_failure' };
     }
+
+    // Persist only a successful provider response. Persistence failures are not provider
+    // failures: let them reach the coordinator so they cannot be mislabeled retry_wait.
+    if (this.context.resultStore) {
+      const saved = await this.context.resultStore.save(operation, query, this.provider, result);
+      return { outcome: 'acknowledged' as const, resultRef: saved.resultSetId, resultHash: saved.resultHash };
+    }
+    // Transitional compatibility for test/preview compositions. Production compositions
+    // must inject a durable ResearchResultStore before exposing a provider result.
+    return { outcome: 'acknowledged' as const, resultRef: result.providerQueryReference };
   }
 }
