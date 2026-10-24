@@ -13,7 +13,11 @@ function stored(row: ResultRow | undefined): StoredResearchResult | undefined {
 }
 
 export class PostgresResearchResultStore implements ResearchResultStore {
-  constructor(private readonly db: SqlClient) {}
+  private readonly db: SqlClient;
+
+  constructor(db: SqlClient) {
+    this.db = db;
+  }
 
   async save(operation: OperationEnvelope, query: ResearchQuery, provider: Pick<ResearchProvider, 'providerId'|'adapterVersion'>, result: ResearchResult): Promise<StoredResearchResult> {
     if (!operation.contentHash) throw new Error('research_operation_payload_hash_required');
