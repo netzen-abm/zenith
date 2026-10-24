@@ -122,7 +122,16 @@ rollback;`);
       const lit = (value: unknown) => value === null || value === undefined ? 'null' : "'" + String(value).replaceAll("'", "''") + "'";
       const output = await psql(`begin;\nset local role authenticated;\nselect set_config('request.jwt.claim.sub','${authUserId}',true);\nselect set_config('app.identity_id','${identityId}',true);\nselect set_config('app.organisation_id','${organisationId}',true);\nselect row_to_json(t)::text from (select * from core_private.persist_research_query_result_set(${lit(opId)}::uuid,${lit(queryId)}::uuid,${lit(providerId)},${lit(providerVersion)},${lit(requestHash)},${lit(cursorKey)},${lit(providerReference)},${lit(resultPayload)}::jsonb)) t;\ncommit;`);
       const line = output.split('\n').find(entry => entry.startsWith('{'));
-      return (line ? [JSON.parse(line)] : []) as T[];
+      if (!line) throw new Error('research_result_snapshot_write_no_row:' + output);
+      const row = JSON.parse(line) as Record<string, unknown>;
+      if (!row.result_set_id || !row.result_hash) {
+        throw new Error('research_result_snapshot_write_shape_invalid:' + Object.keys(row).sort().join(',') + ':values=' + JSON.stringify({
+          result_set_id: row.result_set_id ?? null,
+          result_hash_present: typeof row.result_hash === 'string',
+          created: row.created ?? null,
+        }));
+      }
+      return [row] as T[];
     }
     if (sql.includes('from core.research_query_result_sets r') && sql.includes('join operations.operations o')) {
       const [opId, orgId, identity, queryId, requestHash, providerId] = params;
