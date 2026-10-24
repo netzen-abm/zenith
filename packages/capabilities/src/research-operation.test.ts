@@ -1,4 +1,5 @@
 import { strict as assert } from 'node:assert';
+import { MemoryResearchResultStore } from './research-result-store-fixture.ts';
 import { MemoryOperationStore } from './research-operation-store-fixture.ts';
 import { DeterministicResearchProvider } from './research-provider-fixture.ts';
 import { ResearchOperation } from './research-operation.ts';
@@ -23,6 +24,7 @@ const operation = new ResearchOperation(store, provider, {
   authorization: { authorize: async () => { calls.push('authorize'); return true; } },
   reservation: { reserve: async id => { calls.push('reserve:' + id); if (reservedIds.has(id)) return { allowed: false, decision: 'deny_state' }; reservedIds.add(id); return { allowed: true, decision: 'reserved', attemptCount: 1 }; } },
   operationStore,
+  resultStore: new MemoryResearchResultStore(),
   outcomeRecorder: {
     record: async (operation, outcome) => {
       handlerAttemptCount = operation.attemptCount;

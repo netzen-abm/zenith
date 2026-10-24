@@ -1,4 +1,5 @@
 import { strict as assert } from 'node:assert';
+import { MemoryResearchResultStore } from './research-result-store-fixture.ts';
 import { MemoryOperationStore } from './research-operation-store-fixture.ts';
 import { ResearchOperation, type ResearchQueryStore } from './research-operation.ts';
 import type { ResearchQuery } from './research-intelligence.ts';
@@ -30,10 +31,16 @@ const operation = new ResearchOperation(store, {
     return { allowed: true, decision: 'reserved', attemptCount: 1 };
   } },
   operationStore: new MemoryOperationStore(),
-  outcomeRecorder: { record: async () => {
-    outcomeCalls += 1;
-    return { recorded: false, decision: 'outcome_rejected' };
-  } },
+  resultStore: new MemoryResearchResultStore(),
+  resultStore: new MemoryResearchResultStore(),
+  outcomeRecorder: {
+    record: async (_operation, outcome) => {
+      outcomeCalls += 1;
+      if (outcomeCalls === 1) return { recorded: false, decision: 'outcome_rejected' };
+      return { recorded: true, decision: 'recorded' };
+    },
+    findLatest: async () => undefined,
+  },
 });
 await assert.rejects(
   () => operation.execute(query),
@@ -42,9 +49,8 @@ await assert.rejects(
 assert.equal(providerCalls, 1, 'first attempt reached provider exactly once before outcome persistence failed');
 assert.equal(outcomeCalls, 1);
 
-await assert.rejects(
-  () => operation.execute({ ...query }),
-  /research_not_executed:deny_reservation/,
-);
-assert.equal(providerCalls, 1, 'retry must not repeat provider side effect while prior outcome is unresolved');
-assert.equal(outcomeCalls, 1, 'retry must not create a second outcome for the unresolved attempt');
+const recovered = await operation.execute({ ...query });
+assert.equal(recovered.state, 'acknowledged', 'saved provider result reconciles the missing durable outcome');
+assert.match(recovered.resultRef ?? '', /^memory-result-/);
+assert.equal(providerCalls, 1, 'reconciliation must not repeat provider work');
+assert.equal(outcomeCalls, 2, 'reconciliation writes the durable outcome once the result snapshot is available');

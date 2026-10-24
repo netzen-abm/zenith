@@ -1,4 +1,5 @@
 import { strict as assert } from 'node:assert';
+import { MemoryResearchResultStore } from './research-result-store-fixture.ts';
 import { MemoryOperationStore } from './research-operation-store-fixture.ts';
 import { ResearchOperation, type ResearchQueryStore } from './research-operation.ts';
 import { ResearchProviderError, type ResearchQuery } from './research-intelligence.ts';

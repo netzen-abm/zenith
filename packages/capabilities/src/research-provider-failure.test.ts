@@ -1,4 +1,5 @@
 import { strict as assert } from 'node:assert';
+import { MemoryResearchResultStore } from './research-result-store-fixture.ts';
 import { MemoryOperationStore } from './research-operation-store-fixture.ts';
 import { ResearchOperation, type ResearchQueryStore } from './research-operation.ts';
 import type { ResearchQuery } from './research-intelligence.ts';
@@ -22,6 +23,7 @@ const operation = new ResearchOperation(store, {
   authorization: { authorize: async () => { calls.push('authorize'); return true; } },
   reservation: { reserve: async () => { calls.push('reserve'); return { allowed: true, decision: 'reserved', attemptCount: 1 }; } },
   operationStore: new MemoryOperationStore(),
+  resultStore: new MemoryResearchResultStore(),
   outcomeRecorder: { record: async (_op, outcome) => { calls.push('outcome:' + outcome.outcome); return { recorded: true, decision: 'recorded' }; } },
 });
 await operation.execute(query);

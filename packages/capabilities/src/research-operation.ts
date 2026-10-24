@@ -4,8 +4,9 @@ import type { OperationStore } from '../../contracts/src/operation-store.ts';
 import { ExecutionCoordinator, type ExecutionAuthorization, type ExecutionOutcomeRecorder, type ExecutionReservation } from '../../operation-queue/src/execution-coordinator.ts';
 import { ResearchProviderError, validateResearchQuery, type ResearchQuery, type ResearchProvider } from './research-intelligence.ts';
 import type { ResearchQueryStore } from './research/repository.ts';
+import type { ResearchResultStore } from './research/result-repository.ts';
 
-export type ResearchExecutionContext = { authorization: ExecutionAuthorization; reservation: ExecutionReservation; outcomeRecorder: ExecutionOutcomeRecorder; operationStore: OperationStore };
+export type ResearchExecutionContext = { authorization: ExecutionAuthorization; reservation: ExecutionReservation; outcomeRecorder: ExecutionOutcomeRecorder; operationStore: OperationStore; resultStore?: ResearchResultStore };
 
 function canonicalizePayload(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalizePayload);
@@ -92,6 +93,22 @@ export class ResearchOperation {
       }
       return resolved.operation;
     });
+    if (!result.executed && result.decision === 'deny_reservation' && this.context.resultStore) {
+      const saved = await this.context.resultStore.findForOperation(canonicalOperation, query, this.provider.providerId);
+      if (saved) {
+        const recovered = await this.context.outcomeRecorder.record(
+          { ...canonicalOperation, attemptCount: Math.max(canonicalOperation.attemptCount ?? 0, 1) },
+          { outcome: 'acknowledged', resultRef: saved.resultSetId, resultHash: saved.resultHash },
+        );
+        if (!recovered.recorded) {
+          const existing = await this.context.outcomeRecorder.findLatest?.(canonicalOperation.operationId);
+          if (existing?.outcome !== 'acknowledged' || existing.resultRef !== saved.resultSetId) {
+            throw new Error(`research_result_recovery_not_durable:${recovered.decision}`);
+          }
+        }
+        return { ...canonicalOperation, state: 'acknowledged', resultRef: saved.resultSetId };
+      }
+    }
     if (!result.executed) throw new Error('research_not_executed:' + result.decision);
     const outcomeState = result.outcome?.outcome === 'acknowledged' ? 'acknowledged'
       : result.outcome?.outcome === 'retry_wait' ? 'retry_wait'
@@ -116,6 +133,12 @@ export class ResearchOperation {
     if (!query) return { outcome: 'rejected' as const, errorCode: 'research_query_not_found' };
     try {
       const result = await this.provider.search(query);
+      if (this.context.resultStore) {
+        const saved = await this.context.resultStore.save(operation, query, this.provider, result);
+        return { outcome: 'acknowledged' as const, resultRef: saved.resultSetId, resultHash: saved.resultHash };
+      }
+      // Transitional compatibility for test/preview compositions. Production compositions
+      // must inject a durable ResearchResultStore before exposing a provider result.
       return { outcome: 'acknowledged' as const, resultRef: result.providerQueryReference };
     } catch (error) {
       if (error instanceof ResearchProviderError) {
