@@ -6,27 +6,61 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: read
 
 concurrency:
   group: branch-hygiene
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   audit:
-    name: Audit exact nine-branch budget
+    name: Archive retired heads and audit nine-branch budget
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-      - name: Verify canonical remote inventory
+      - name: Archive closed CodeQL Dependabot heads
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
         shell: bash
         run: |
           set -euo pipefail
+          archive_head() {
+            local pr_number="$1"
+            local expected_sha="$2"
+            local tag="$3"
+            local pr state head_sha tag_sha
+            pr="$(gh api "repos/$REPO/pulls/$pr_number")"
+            state="$(jq -r '.state' <<<"$pr")"
+            head_sha="$(jq -r '.head.sha' <<<"$pr")"
+            if [[ "$state" != "closed" || "$head_sha" != "$expected_sha" ]]; then
+              echo "::error::PR $pr_number state/head changed; refusing unexpected archive."
+              exit 1
+            fi
+            [[ "$(gh api "repos/$REPO/commits/$expected_sha" --jq '.sha')" == "$expected_sha" ]]
+            tag_sha="$(gh api "repos/$REPO/git/ref/tags/$tag" --jq '.object.sha' 2>/dev/null || true)"
+            if [[ -n "$tag_sha" ]]; then
+              [[ "$tag_sha" == "$expected_sha" ]] || { echo "::error::Archive tag points to another commit."; exit 1; }
+            else
+              gh api --method POST "repos/$REPO/git/refs" -f "ref=refs/tags/$tag" -f "sha=$expected_sha" >/dev/null
+            fi
+            tag_sha="$(gh api "repos/$REPO/git/ref/tags/$tag" --jq '.object.sha')"
+            [[ "$tag_sha" == "$expected_sha" ]]
+            echo "ARCHIVED: PR $pr_number -> refs/tags/$tag -> $expected_sha"
+          }
+          archive_head 105 "80e435d0d27a0c163b1eb11ed19d19c6f0584421" "archive-branch-pr105-codeql-upload-sarif-4.39.1-80e435d0d27a"
+          archive_head 106 "33a4da55542638c6baabc8c4eac83b5abd8d8d46" "archive-branch-pr106-codeql-analyze-4.39.1-33a4da555426"
+          archive_head 107 "80f2e2867eddba1b51bb4e033388f19db2bfab19" "archive-branch-pr107-codeql-init-4.39.1-80f2e2867edd"
 
-          protected=(
+      - name: Verify exact canonical remote branch inventory
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          canonical=(
             "main"
             "feat/knowledge-graph-next"
             "feat/space-time-next"
@@ -37,28 +71,14 @@ jobs:
             "feat/security-release-engineering"
             "feat/field-acquisition"
           )
-
-          mapfile -t branches < <(gh api --paginate "repos/$REPO/branches?per_page=100" --jq '.[].name')
+          mapfile -t branches < <(gh api --paginate "repos/$REPO/branches?per_page=100" --jq '.[].name' | sort -u)
           echo "Remote branch count: ${#branches[@]}"
-
-          unexpected=()
-          for branch in "${branches[@]}"; do
-            if printf '%s\n' "${protected[@]}" | grep -Fxq "$branch"; then
-              echo "KEEP canonical: $branch"
-            else
-              unexpected+=("$branch")
-              echo "NON-CANONICAL: $branch"
-            fi
+          printf '%s\n' "${branches[@]}"
+          [[ "${#branches[@]}" -eq 9 ]] || { echo "::error::Expected exactly nine active branches."; exit 1; }
+          for branch in "${canonical[@]}"; do
+            printf '%s\n' "${branches[@]}" | grep -Fxq "$branch" || { echo "::error::Missing canonical branch: $branch"; exit 1; }
           done
-
-          if [[ "${#branches[@]}" -ne 9 ]]; then
-            echo "::error::Repository hygiene violation: expected exactly 9 active branches, found ${#branches[@]}."
-            exit 1
-          fi
-
-          if [[ "${#unexpected[@]}" -ne 0 ]]; then
-            echo "::error::Non-canonical branches remain."
-            exit 1
-          fi
-
-          echo "Branch hygiene PASS: exactly nine canonical branches remain."
+          for branch in "${branches[@]}"; do
+            printf '%s\n' "${canonical[@]}" | grep -Fxq "$branch" || { echo "::error::Non-canonical branch remains: $branch"; exit 1; }
+          done
+          echo "Branch hygiene PASS: exactly nine canonical branches remain; retired heads are archived."

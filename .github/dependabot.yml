@@ -1,10 +1,15 @@
 version: 2
 updates:
-  # ZENITH currently has no npm, Python, Rust, or other package-manager
-  # manifest in the repository. GitHub Actions are the dependency surface
-  # that requires automated version/security update coverage today.
+  # GitHub Actions are currently the automated dependency surface for ZENITH.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+    groups:
+      codeql-action:
+        patterns:
+          - "github/codeql-action/*"
+        update-types:
+          - "minor"
+          - "patch"
