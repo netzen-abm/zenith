@@ -7,7 +7,14 @@ const calls:Array<{sql:string;params:readonly unknown[]}>=[];
 const query:ResearchQuery={queryId:'00000000-0000-0000-0000-0000000001a1',intent:'discover',text:'Pattanam',pageSize:1,requesterIdentityId:'00000000-0000-0000-0000-0000000001a2',organisationId:'00000000-0000-0000-0000-0000000001a3',purpose:'research'};
 const operation:OperationEnvelope={operationId:'00000000-0000-0000-0000-0000000001a4',idempotencyKey:query.queryId,action:'research.query',identityId:query.requesterIdentityId,organisationId:query.organisationId,purpose:query.purpose,state:'in_flight',attemptCount:1,createdAt:'2026-10-24T00:00:00.000Z',payloadRef:query.queryId,contentHash:'a'.repeat(64)};
 const result:ResearchResult={queryId:query.queryId,providerId:'crossref',providerQueryReference:'crossref:works:abc',retrievedAt:'2026-10-24T00:00:00.000Z',results:[{canonicalWorkId:'doi:10.1000/abc',title:'Pattanam',identifiers:['doi:10.1000/abc'],sourceProvenance:'crossref:doi:10.1000/abc',rightsMetadata:{provider:'Crossref',licenseUrls:[]}}],partial:false,warnings:[]};
-const store=new PostgresResearchResultStore({async query<T extends Record<string,unknown>>(sql:string,params:readonly unknown[]=[]){calls.push({sql,params});if(sql.includes('persist_research_query_result_set'))return [{result_set_id:'result-set-1',result_hash:'b'.repeat(64)}] as T[];if(sql.includes('join operations.operations'))return [{result_set_id:'result-set-1',result_hash:'b'.repeat(64),result_payload:result}] as T[];return [{result_set_id:'result-set-1',result_hash:'b'.repeat(64),result_payload:result}] as T[];}});
+const store=new PostgresResearchResultStore({
+  async query<T extends Record<string,unknown>>(sql:string,params:readonly unknown[]=[]):Promise<{rows:readonly T[]}>{
+    calls.push({sql,params});
+    if(sql.includes('persist_research_query_result_set')) return {rows:[{result_set_id:'result-set-1',result_hash:'b'.repeat(64)} as T]};
+    if(sql.includes('join operations.operations')) return {rows:[{result_set_id:'result-set-1',result_hash:'b'.repeat(64),result_payload:result} as T]};
+    return {rows:[{result_set_id:'result-set-1',result_hash:'b'.repeat(64),result_payload:result} as T]};
+  }
+});
 const saved=await store.save(operation,query,{providerId:'crossref',adapterVersion:'1.0.0'},result);
 assert.equal(saved.resultSetId,'result-set-1');
 assert.equal(saved.resultHash,'b'.repeat(64));

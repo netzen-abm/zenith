@@ -24,12 +24,12 @@ export class PostgresResearchResultStore implements ResearchResultStore {
     if (result.queryId !== query.queryId || result.providerId !== provider.providerId || !result.providerQueryReference) {
       throw new Error('research_result_identity_mismatch');
     }
-    const rows = await this.db.query<{ result_set_id: string; result_hash: string }>(
+    const persisted = await this.db.query<{ result_set_id: string; result_hash: string }>(
       'select * from core_private.persist_research_query_result_set($1::uuid,$2::uuid,$3,$4,$5,$6,$7,$8::jsonb)',
       [operation.operationId, query.queryId, provider.providerId, provider.adapterVersion, operation.contentHash,
         query.cursor?.trim() || '*', result.providerQueryReference, JSON.stringify(result)],
     );
-    const row = rows[0];
+    const row = persisted.rows[0];
     if (!row?.result_set_id) {
       throw new Error('research_result_persistence_failed:result_set_id_missing');
     }
@@ -41,7 +41,7 @@ export class PostgresResearchResultStore implements ResearchResultStore {
 
   async findForOperation(operation: OperationEnvelope, query: ResearchQuery, providerId: string): Promise<StoredResearchResult | undefined> {
     if (!operation.contentHash) return undefined;
-    const rows = await this.db.query<ResultRow>(
+    const found = await this.db.query<ResultRow>(
       `select r.id as result_set_id, r.result_hash, r.result_payload
          from core.research_query_result_sets r
          join operations.operations o on o.id = $1::uuid
@@ -53,17 +53,17 @@ export class PostgresResearchResultStore implements ResearchResultStore {
         limit 1`,
       [operation.operationId, query.organisationId, query.requesterIdentityId, query.queryId, operation.contentHash, providerId],
     );
-    return stored(rows[0]);
+    return stored(found.rows[0]);
   }
 
   async get(resultSetId: string, organisationId: string, identityId: string): Promise<StoredResearchResult | undefined> {
-    const rows = await this.db.query<ResultRow>(
+    const found = await this.db.query<ResultRow>(
       `select r.id as result_set_id, r.result_hash, r.result_payload
          from core.research_query_result_sets r
         where r.id = $1::uuid and r.organisation_id = $2::uuid and r.identity_id = $3::uuid
         limit 1`,
       [resultSetId, organisationId, identityId],
     );
-    return stored(rows[0]);
+    return stored(found.rows[0]);
   }
 }
