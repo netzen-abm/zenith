@@ -120,22 +120,22 @@ rollback;`);
     if (sql.includes('core_private.persist_research_query_result_set')) {
       const [opId, queryId, providerId, providerVersion, requestHash, cursorKey, providerReference, resultPayload] = params;
       const lit = (value: unknown) => value === null || value === undefined ? 'null' : "'" + String(value).replaceAll("'", "''") + "'";
-      const output = await psql(`begin;\\nset local role authenticated;\\nselect set_config('request.jwt.claim.sub','${authUserId}',true);\\nselect set_config('app.identity_id','${identityId}',true);\\nselect set_config('app.organisation_id','${organisationId}',true);\\nselect row_to_json(t)::text from (select * from core_private.persist_research_query_result_set(${lit(opId)}::uuid,${lit(queryId)}::uuid,${lit(providerId)},${lit(providerVersion)},${lit(requestHash)},${lit(cursorKey)},${lit(providerReference)},${lit(resultPayload)}::jsonb)) t;\\ncommit;`);
-      const line = output.split('\\n').find(entry => entry.startsWith('{'));
+      const output = await psql(`begin;\nset local role authenticated;\nselect set_config('request.jwt.claim.sub','${authUserId}',true);\nselect set_config('app.identity_id','${identityId}',true);\nselect set_config('app.organisation_id','${organisationId}',true);\nselect row_to_json(t)::text from (select * from core_private.persist_research_query_result_set(${lit(opId)}::uuid,${lit(queryId)}::uuid,${lit(providerId)},${lit(providerVersion)},${lit(requestHash)},${lit(cursorKey)},${lit(providerReference)},${lit(resultPayload)}::jsonb)) t;\ncommit;`);
+      const line = output.split('\n').find(entry => entry.startsWith('{'));
       return (line ? [JSON.parse(line)] : []) as T[];
     }
     if (sql.includes('from core.research_query_result_sets r') && sql.includes('join operations.operations o')) {
       const [opId, orgId, identity, queryId, requestHash, providerId] = params;
       const lit = (value: unknown) => value === null || value === undefined ? 'null' : "'" + String(value).replaceAll("'", "''") + "'";
-      const output = await psql(`begin;\\nset local role authenticated;\\nselect set_config('request.jwt.claim.sub','${authUserId}',true);\\nselect set_config('app.identity_id','${identityId}',true);\\nselect set_config('app.organisation_id','${organisationId}',true);\\nselect row_to_json(t)::text from (select r.id as result_set_id,r.result_hash,r.result_payload from core.research_query_result_sets r join operations.operations o on o.id = ${lit(opId)}::uuid where o.organisation_id = ${lit(orgId)}::uuid and o.identity_id = ${lit(identity)}::uuid and o.action = 'research.query' and o.payload_ref = ${lit(queryId)} and o.payload_hash = ${lit(requestHash)} and r.organisation_id = ${lit(orgId)}::uuid and r.identity_id = ${lit(identity)}::uuid and r.query_id = ${lit(queryId)}::uuid and r.request_hash = ${lit(requestHash)} and r.provider_id = ${lit(providerId)} order by r.retrieved_at desc,r.created_at desc limit 1) t;\\ncommit;`);
-      const line = output.split('\\n').find(entry => entry.startsWith('{'));
+      const output = await psql(`begin;\nset local role authenticated;\nselect set_config('request.jwt.claim.sub','${authUserId}',true);\nselect set_config('app.identity_id','${identityId}',true);\nselect set_config('app.organisation_id','${organisationId}',true);\nselect row_to_json(t)::text from (select r.id as result_set_id,r.result_hash,r.result_payload from core.research_query_result_sets r join operations.operations o on o.id = ${lit(opId)}::uuid where o.organisation_id = ${lit(orgId)}::uuid and o.identity_id = ${lit(identity)}::uuid and o.action = 'research.query' and o.payload_ref = ${lit(queryId)} and o.payload_hash = ${lit(requestHash)} and r.organisation_id = ${lit(orgId)}::uuid and r.identity_id = ${lit(identity)}::uuid and r.query_id = ${lit(queryId)}::uuid and r.request_hash = ${lit(requestHash)} and r.provider_id = ${lit(providerId)} order by r.retrieved_at desc,r.created_at desc limit 1) t;\ncommit;`);
+      const line = output.split('\n').find(entry => entry.startsWith('{'));
       return (line ? [JSON.parse(line)] : []) as T[];
     }
     if (sql.includes('from core.research_query_result_sets r')) {
       const [resultSetId, orgId, identity] = params;
       const lit = (value: unknown) => value === null || value === undefined ? 'null' : "'" + String(value).replaceAll("'", "''") + "'";
-      const output = await psql(`begin;\\nset local role authenticated;\\nselect set_config('request.jwt.claim.sub','${authUserId}',true);\\nselect set_config('app.identity_id','${identityId}',true);\\nselect set_config('app.organisation_id','${organisationId}',true);\\nselect row_to_json(t)::text from (select r.id as result_set_id,r.result_hash,r.result_payload from core.research_query_result_sets r where r.id = ${lit(resultSetId)}::uuid and r.organisation_id = ${lit(orgId)}::uuid and r.identity_id = ${lit(identity)}::uuid limit 1) t;\\ncommit;`);
-      const line = output.split('\\n').find(entry => entry.startsWith('{'));
+      const output = await psql(`begin;\nset local role authenticated;\nselect set_config('request.jwt.claim.sub','${authUserId}',true);\nselect set_config('app.identity_id','${identityId}',true);\nselect set_config('app.organisation_id','${organisationId}',true);\nselect row_to_json(t)::text from (select r.id as result_set_id,r.result_hash,r.result_payload from core.research_query_result_sets r where r.id = ${lit(resultSetId)}::uuid and r.organisation_id = ${lit(orgId)}::uuid and r.identity_id = ${lit(identity)}::uuid limit 1) t;\ncommit;`);
+      const line = output.split('\n').find(entry => entry.startsWith('{'));
       return (line ? [JSON.parse(line)] : []) as T[];
     }
     if (sql.includes('from operations.execution_outcomes')) {
@@ -420,6 +420,7 @@ delete from operations.execution_outbox where operation_id in (select id from op
 delete from operations.execution_outcomes where operation_id in (select id from operations.operations where idempotency_key = '${researchQueryId}');
 delete from operations.operations where idempotency_key = '${researchQueryId}';
 delete from core.research_query_result_sets where query_id = '${researchQueryId}';
+delete from core.research_query_result_sets where query_id = '${researchQueryId}';
 delete from core.research_query_requests where id = '${researchQueryId}';
 `);
 const researchQuery: ResearchQuery = {
@@ -531,6 +532,7 @@ await psql(`
 delete from operations.execution_outbox where operation_id in (select id from operations.operations where idempotency_key = '${researchQueryId}');
 delete from operations.execution_outcomes where operation_id in (select id from operations.operations where idempotency_key = '${researchQueryId}');
 delete from operations.operations where idempotency_key = '${researchQueryId}';
+delete from core.research_query_result_sets where query_id = '${researchQueryId}';
 delete from core.research_query_requests where id = '${researchQueryId}';
 `);
 console.log('PostgreSQL Research idempotent replay and payload-conflict E2E assertions passed.');
@@ -542,6 +544,7 @@ await psql(`
 delete from operations.execution_outbox where operation_id = '${legacyResearchOperationId}';
 delete from operations.execution_outcomes where operation_id = '${legacyResearchOperationId}';
 delete from operations.operations where id = '${legacyResearchOperationId}';
+delete from core.research_query_result_sets where query_id = '${legacyResearchQueryId}';
 delete from core.research_query_result_sets where query_id = '${legacyResearchQueryId}';
 delete from core.research_query_requests where id = '${legacyResearchQueryId}';
 insert into operations.operations(
@@ -569,6 +572,7 @@ await psql(`
 delete from operations.execution_outbox where operation_id = '${legacyResearchOperationId}';
 delete from operations.execution_outcomes where operation_id = '${legacyResearchOperationId}';
 delete from operations.operations where id = '${legacyResearchOperationId}';
+delete from core.research_query_result_sets where query_id = '${legacyResearchQueryId}';
 delete from core.research_query_requests where id = '${legacyResearchQueryId}';
 `);
 console.log('PostgreSQL legacy Research pre-persistence recovery assertions passed.');
@@ -581,6 +585,7 @@ await psql(`
 delete from operations.execution_outbox where operation_id in (select id from operations.operations where idempotency_key = '${ambiguousResearchQueryId}');
 delete from operations.execution_outcomes where operation_id in (select id from operations.operations where idempotency_key = '${ambiguousResearchQueryId}');
 delete from operations.operations where idempotency_key = '${ambiguousResearchQueryId}';
+delete from core.research_query_result_sets where query_id = '${ambiguousResearchQueryId}';
 delete from core.research_query_result_sets where query_id = '${ambiguousResearchQueryId}';
 delete from core.research_query_requests where id = '${ambiguousResearchQueryId}';
 `);
@@ -635,6 +640,7 @@ await psql(`
 delete from operations.execution_outbox where operation_id = '${canonicalAmbiguousResearchId}';
 delete from operations.execution_outcomes where operation_id = '${canonicalAmbiguousResearchId}';
 delete from operations.operations where id = '${canonicalAmbiguousResearchId}';
+delete from core.research_query_result_sets where query_id = '${ambiguousResearchQueryId}';
 delete from core.research_query_requests where id = '${ambiguousResearchQueryId}';
 `);
 console.log('PostgreSQL Research ambiguous-outcome E2E assertions passed.');
