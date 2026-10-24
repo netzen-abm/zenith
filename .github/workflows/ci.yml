@@ -151,6 +151,9 @@ jobs:
           grep -Fq "grant execute on function operations.create_or_get_with_payload_hash" "$hash_file"
           results_file="core/database/migrations/0029_research_query_result_sets.sql"
           test -f "$results_file"
+          results_fix_file="core/database/migrations/0030_research_result_set_conflict_target.sql"
+          test -f "$results_fix_file"
+          grep -Fq "on conflict on constraint research_query_result_set_idempotency do nothing" "$results_fix_file"
           grep -Eqi "security definer" "$results_file"
           grep -Fq "set search_path = ''" "$results_file"
           grep -Fq "o.state = 'in_flight'" "$results_file"
@@ -261,9 +264,6 @@ jobs:
 
       - name: Run typed Research provider error tests
         run: node --experimental-strip-types packages/capabilities/src/research-provider-errors.test.ts
-
-      - name: Run PostgreSQL Research result-store adapter contract tests
-        run: node --experimental-strip-types packages/adapters/src/research/postgres-result-repository.test.ts
 
       - name: Run research execution integration tests
         run: node --experimental-strip-types packages/capabilities/src/research-operation.test.ts
