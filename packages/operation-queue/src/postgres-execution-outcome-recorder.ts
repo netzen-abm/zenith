@@ -34,15 +34,16 @@ export class PostgresExecutionOutcomeRecorder implements ExecutionOutcomeRecorde
     return { recorded: result.recorded === true, decision: result.decision };
   }
 
-  async findLatest(operationId: string): Promise<ExecutionOutcome | undefined> {
+  async findLatest(operationId: string): Promise<(ExecutionOutcome & { attemptCount: number }) | undefined> {
     const rows = await this.db.query<{
+      attempt_count: number;
       outcome: ExecutionOutcome['outcome'];
       error_code: string | null;
       result_ref: string | null;
       result_hash: string | null;
       occurred_at: string;
     }>(
-      `select outcome, error_code, result_ref, result_hash, occurred_at
+      `select attempt_count, outcome, error_code, result_ref, result_hash, occurred_at
          from operations.execution_outcomes
         where operation_id = $1::uuid
         order by attempt_count desc
@@ -52,6 +53,7 @@ export class PostgresExecutionOutcomeRecorder implements ExecutionOutcomeRecorde
     const row = rows[0];
     if (!row) return undefined;
     return {
+      attemptCount: Number(row.attempt_count),
       outcome: row.outcome,
       ...(row.error_code == null ? {} : { errorCode: row.error_code }),
       ...(row.result_ref == null ? {} : { resultRef: row.result_ref }),

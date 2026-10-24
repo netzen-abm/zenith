@@ -239,3 +239,83 @@ assert.deepEqual(replayResult, {
 });
 assert.equal(replayReservationCalls, 0);
 assert.equal(replayHandlerCalls, 0);
+
+// A durable retry_wait is replayed while terminal for that attempt, but a deliberate
+// retry_wait -> queued transition permits a new reservation and exactly one next attempt.
+const retryWaitOperation: OperationEnvelope = {
+  ...operation,
+  operationId: 'op-retry-wait-requeued',
+  idempotencyKey: 'idem-retry-wait-requeued',
+  state: 'queued',
+  attemptCount: 1,
+};
+let retryReservationCalls = 0;
+let retryHandlerCalls = 0;
+const retryRecordedAttempts: number[] = [];
+const retryOutcomeRecorder = {
+  async findLatest(id: string) {
+    assert.equal(id, retryWaitOperation.operationId);
+    return { outcome: 'retry_wait' as const, errorCode: 'crossref_http_429', attemptCount: 1 };
+  },
+  async record(op: OperationEnvelope, outcome: { outcome: string }) {
+    retryRecordedAttempts.push(op.attemptCount ?? 0);
+    assert.equal(outcome.outcome, 'acknowledged');
+    return { recorded: true, decision: 'recorded' };
+  },
+};
+const requeuedRetryCoordinator = new ExecutionCoordinator(
+  authorization,
+  {
+    async reserve(id) {
+      assert.equal(id, retryWaitOperation.operationId);
+      retryReservationCalls += 1;
+      return { allowed: true, decision: 'allow', attemptCount: 2 };
+    },
+  },
+  async op => {
+    retryHandlerCalls += 1;
+    assert.equal(op.attemptCount, 2);
+    return { outcome: 'acknowledged', resultRef: 'crossref:recovered-on-attempt-2' };
+  },
+  retryOutcomeRecorder,
+);
+const requeuedRetry = await requeuedRetryCoordinator.execute(retryWaitOperation);
+assert.deepEqual(requeuedRetry, {
+  executed: true,
+  decision: 'allow',
+  outcome: { outcome: 'acknowledged', resultRef: 'crossref:recovered-on-attempt-2' },
+});
+assert.equal(retryReservationCalls, 1, 'explicit requeue must reach the reservation gate');
+assert.equal(retryHandlerCalls, 1, 're-queued retry invokes the handler exactly once');
+assert.deepEqual(retryRecordedAttempts, [2], 'new outcome belongs to the newly reserved attempt');
+
+// While the operation is still in retry_wait, a duplicate only replays the stored failure
+// and never reserves another attempt.
+let terminalRetryReservationCalls = 0;
+let terminalRetryHandlerCalls = 0;
+const terminalRetryCoordinator = new ExecutionCoordinator(
+  authorization,
+  { async reserve() { terminalRetryReservationCalls += 1; return { allowed: true, decision: 'allow' }; } },
+  async () => { terminalRetryHandlerCalls += 1; return { outcome: 'acknowledged' }; },
+  retryOutcomeRecorder,
+);
+const terminalRetryResult = await terminalRetryCoordinator.execute({ ...retryWaitOperation, state: 'retry_wait' });
+assert.equal(terminalRetryResult.executed, true);
+assert.equal(terminalRetryResult.outcome?.outcome, 'retry_wait');
+assert.equal(terminalRetryReservationCalls, 0);
+assert.equal(terminalRetryHandlerCalls, 0);
+
+// A prior retry_wait must not mask a newer in-flight attempt whose outcome is missing.
+let ambiguousNewerReservationCalls = 0;
+let ambiguousNewerHandlerCalls = 0;
+const staleOutcomeCoordinator = new ExecutionCoordinator(
+  authorization,
+  { async reserve() { ambiguousNewerReservationCalls += 1; return { allowed: true, decision: 'allow' }; } },
+  async () => { ambiguousNewerHandlerCalls += 1; return { outcome: 'acknowledged' }; },
+  retryOutcomeRecorder,
+);
+const ambiguousNewer = await staleOutcomeCoordinator.execute({ ...retryWaitOperation, state: 'in_flight', attemptCount: 2 });
+assert.deepEqual(ambiguousNewer, { executed: false, decision: 'deny_reservation' });
+assert.equal(ambiguousNewerReservationCalls, 0, 'do not re-enter a newer attempt when only the old attempt outcome is durable');
+assert.equal(ambiguousNewerHandlerCalls, 0);
+

@@ -12,8 +12,8 @@ export interface ExecutionAuthorization { authorize(operation: OperationEnvelope
 export interface ExecutionReservation { reserve(operationId: string): Promise<ReservationResult>; }
 export interface ExecutionOutcomeRecorder {
   record(operation: OperationEnvelope, outcome: ExecutionOutcome): Promise<DurableOutcomeResult>;
-  /** Return the latest durable outcome for an already-resolved canonical operation, if available. */
-  findLatest?(operationId: string): Promise<ExecutionOutcome | undefined>;
+  /** Return the latest durable outcome and its execution attempt, when available. */
+  findLatest?(operationId: string): Promise<(ExecutionOutcome & { attemptCount?: number }) | undefined>;
 }
 export type ExecutionPreparation = (operation: OperationEnvelope) => Promise<OperationEnvelope | void>;
 export type ExecutionHandler = (operation: OperationEnvelope) => Promise<ExecutionOutcome>;
@@ -58,7 +58,25 @@ export class ExecutionCoordinator {
     // re-enter a provider or fail merely because the operation is already terminal.
     const priorOutcome = await this.outcomeRecorder.findLatest?.(admittedOperation.operationId);
     if (priorOutcome) {
-      return { executed: true, decision: 'allow', outcome: priorOutcome };
+      const { attemptCount: priorAttemptCount, ...durableOutcome } = priorOutcome;
+      const currentAttemptCount = admittedOperation.attemptCount ?? 0;
+
+      // A newer attempt with no matching durable outcome is ambiguous. Do not return
+      // the previous attempt's retry_wait as if it described the current in-flight run.
+      if (priorAttemptCount !== undefined && currentAttemptCount > priorAttemptCount) {
+        return { executed: false, decision: 'deny_reservation' };
+      }
+
+      // retry_wait is replayed while the operation remains in retry_wait. Once an
+      // operator/scheduler explicitly moves that same attempt back to queued, permit
+      // the reservation boundary to create the next attempt. No retry policy belongs
+      // here; this only respects the existing lifecycle transition.
+      const explicitlyRequeuedRetry = durableOutcome.outcome === 'retry_wait'
+        && admittedOperation.state === 'queued'
+        && (priorAttemptCount === undefined || currentAttemptCount === priorAttemptCount);
+      if (!explicitlyRequeuedRetry) {
+        return { executed: true, decision: 'allow', outcome: durableOutcome };
+      }
     }
 
     // New canonical operations start at created. Advance them through the existing

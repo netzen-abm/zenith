@@ -150,7 +150,7 @@ rollback;`);
     }
     if (sql.includes('from operations.execution_outcomes')) {
       const [id] = params;
-      const output = await psql(`begin;\nset local role authenticated;\nselect set_config('request.jwt.claim.sub','${authUserId}',true);\nselect set_config('app.identity_id','${identityId}',true);\nselect set_config('app.organisation_id','${organisationId}',true);\nselect row_to_json(t)::text from (select outcome,error_code,result_ref,result_hash,to_char(occurred_at at time zone 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') as occurred_at from operations.execution_outcomes where operation_id = '${String(id)}'::uuid order by attempt_count desc limit 1) t;\ncommit;`);
+      const output = await psql(`begin;\nset local role authenticated;\nselect set_config('request.jwt.claim.sub','${authUserId}',true);\nselect set_config('app.identity_id','${identityId}',true);\nselect set_config('app.organisation_id','${organisationId}',true);\nselect row_to_json(t)::text from (select attempt_count,outcome,error_code,result_ref,result_hash,to_char(occurred_at at time zone 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') as occurred_at from operations.execution_outcomes where operation_id = '${String(id)}'::uuid order by attempt_count desc limit 1) t;\ncommit;`);
       const line = output.split('\n').find(entry => entry.startsWith('{'));
       return (line ? [JSON.parse(line)] : []) as T[];
     }
@@ -524,7 +524,7 @@ const buildCrossrefProvider = () => new CrossrefResearchProvider({
     });
   },
 });
-const buildResearchOperation = () => new ResearchOperation(researchStore, buildCrossrefProvider(), {
+const buildResearchOperation = (provider: import('../../packages/capabilities/src/research-intelligence.ts').ResearchProvider = buildCrossrefProvider()) => new ResearchOperation(researchStore, provider, {
   authorization: { authorize: async () => true },
   reservation,
   operationStore: realOperationStore,
@@ -577,6 +577,92 @@ delete from core.research_query_result_sets where query_id = '${researchQueryId}
 delete from core.research_query_requests where id = '${researchQueryId}';
 `);
 console.log('PostgreSQL Research idempotent replay and payload-conflict E2E assertions passed.');
+
+// Crossref's 429 is a known retryable failure, not an ambiguous provider success.
+// Keep retry_wait terminal until the existing lifecycle explicitly re-queues it.
+const retryableResearchQueryId = '00000000-0000-0000-0000-0000000000fa';
+const retryableResearchQuery: ResearchQuery = {
+  ...researchQuery,
+  queryId: retryableResearchQueryId,
+  text: 'Pattanam retry-after integration test',
+};
+await psql(`
+delete from operations.execution_outbox where operation_id in (select id from operations.operations where idempotency_key = '${retryableResearchQueryId}');
+delete from operations.execution_outcomes where operation_id in (select id from operations.operations where idempotency_key = '${retryableResearchQueryId}');
+delete from operations.operations where idempotency_key = '${retryableResearchQueryId}';
+delete from core.research_query_result_sets where query_id = '${retryableResearchQueryId}';
+delete from core.research_query_requests where id = '${retryableResearchQueryId}';
+`);
+const retryHttpCalls: string[] = [];
+const retryableProvider = new CrossrefResearchProvider({
+  mailto: 'research-e2e@example.org',
+  requestIntervalMs: 0,
+  timeoutMs: 1_000,
+  cacheTtlMs: 0,
+  fetchImpl: async () => {
+    retryHttpCalls.push('429');
+    return new Response('rate limited', { status: 429, headers: { 'retry-after': '3' } });
+  },
+});
+const firstRetryable = await buildResearchOperation(retryableProvider).execute(retryableResearchQuery);
+assert.equal(firstRetryable.state, 'retry_wait');
+const retryableOperationId = await psql(`select id from operations.operations where idempotency_key = '${retryableResearchQueryId}'`);
+assert.equal(await psql(`select state || '|' || attempt_count from operations.operations where id = '${retryableOperationId}'`), 'retry_wait|1');
+assert.equal(await psql(`select attempt_count || '|' || outcome || '|' || error_code from operations.execution_outcomes where operation_id = '${retryableOperationId}'`), '1|retry_wait|crossref_http_429');
+assert.deepEqual(retryHttpCalls, ['429']);
+
+// A retry is allowed only after an existing lifecycle transition; this is not a retry loop.
+await realOperationStore.transition(retryableOperationId, 'retry_wait', 'queued');
+const retrySuccessCalls: string[] = [];
+const retrySuccessProvider = new CrossrefResearchProvider({
+  mailto: 'research-e2e@example.org',
+  requestIntervalMs: 0,
+  timeoutMs: 1_000,
+  cacheTtlMs: 0,
+  fetchImpl: async () => {
+    retrySuccessCalls.push('200');
+    return new Response(JSON.stringify(crossrefResponseBody), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  },
+});
+const retriedResearchResult = await buildResearchOperation(retrySuccessProvider).execute(retryableResearchQuery);
+assert.equal(retriedResearchResult.state, 'acknowledged');
+assert.ok(retriedResearchResult.resultRef);
+assert.deepEqual(retryHttpCalls, ['429'], 'first provider records only its known 429 failure');
+assert.deepEqual(retrySuccessCalls, ['200'], 'explicitly re-queued operation makes one new provider call');
+assert.equal(await psql(`select state || '|' || attempt_count from operations.operations where id = '${retryableOperationId}'`), 'acknowledged|2');
+assert.equal(await psql(`select count(*) from operations.execution_outcomes where operation_id = '${retryableOperationId}'`), '2');
+assert.equal(await psql(`select attempt_count || '|' || outcome from operations.execution_outcomes where operation_id = '${retryableOperationId}' order by attempt_count desc limit 1`), '2|acknowledged');
+
+// A fresh adapter/operation instance must replay the current durable success before reservation.
+const retryReplayCalls: string[] = [];
+const replayProvider = new CrossrefResearchProvider({
+  mailto: 'research-e2e@example.org',
+  requestIntervalMs: 0,
+  timeoutMs: 1_000,
+  cacheTtlMs: 0,
+  fetchImpl: async () => {
+    retryReplayCalls.push('unexpected');
+    return new Response(JSON.stringify(crossrefResponseBody), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  },
+});
+const retryReplay = await buildResearchOperation(replayProvider).execute(retryableResearchQuery);
+assert.equal(retryReplay.operationId, retriedResearchResult.operationId);
+assert.equal(retryReplay.resultRef, retriedResearchResult.resultRef);
+assert.deepEqual(retryReplayCalls, [], 'durable attempt-2 success must replay without a new provider call');
+await psql(`
+delete from operations.execution_outbox where operation_id = '${retryableOperationId}';
+delete from operations.execution_outcomes where operation_id = '${retryableOperationId}';
+delete from operations.operations where id = '${retryableOperationId}';
+delete from core.research_query_result_sets where query_id = '${retryableResearchQueryId}';
+delete from core.research_query_requests where id = '${retryableResearchQueryId}';
+`);
+console.log('PostgreSQL Crossref retry_wait -> queued -> acknowledged attempt-2 E2E assertions passed.');
 
 // Recover an untouched legacy operation created before its Research query was persisted.
 const legacyResearchQueryId = '00000000-0000-0000-0000-0000000000f8';

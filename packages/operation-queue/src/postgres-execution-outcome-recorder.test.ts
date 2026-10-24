@@ -10,6 +10,7 @@ const recorder = new PostgresExecutionOutcomeRecorder({
       return [{ recorded: true, decision: 'recorded' }] as T[];
     }
     return [{
+      attempt_count: 1,
       outcome: 'acknowledged',
       error_code: null,
       result_ref: 'provider:research-42',
@@ -41,10 +42,12 @@ assert.match(calls[0].sql, /operations\.record_execution_outcome/);
 
 const recovered = await recorder.findLatest(operation.operationId);
 assert.deepEqual(recovered, {
+  attemptCount: 1,
   outcome: 'acknowledged',
   resultRef: 'provider:research-42',
   resultHash: 'sha256:result-hash',
   occurredAt: '2026-10-15T08:00:00.000Z',
 });
+assert.match(calls[1].sql, /attempt_count, outcome, error_code, result_ref, result_hash, occurred_at/);
 assert.match(calls[1].sql, /operations\.execution_outcomes/);
 assert.deepEqual(calls[1].params, [operation.operationId]);
