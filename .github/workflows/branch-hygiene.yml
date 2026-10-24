@@ -39,7 +39,11 @@ jobs:
               exit 1
             fi
             [[ "$(gh api "repos/$REPO/commits/$expected_sha" --jq '.sha')" == "$expected_sha" ]]
-            tag_sha="$(gh api "repos/$REPO/git/ref/tags/$tag" --jq '.object.sha' 2>/dev/null || true)"
+            if gh api "repos/$REPO/git/ref/tags/$tag" >/dev/null 2>&1; then
+              tag_sha="$(gh api "repos/$REPO/git/ref/tags/$tag" --jq '.object.sha')"
+            else
+              tag_sha=""
+            fi
             if [[ -n "$tag_sha" ]]; then
               [[ "$tag_sha" == "$expected_sha" ]] || { echo "::error::Archive tag points to another commit."; exit 1; }
             else
