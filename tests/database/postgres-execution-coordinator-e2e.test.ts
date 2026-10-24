@@ -94,7 +94,12 @@ rollback;`);
       const lit = (value: unknown) => value === null || value === undefined ? 'null' : "'" + String(value).replaceAll("'", "''") + "'";
       const output = await psql(`begin;\nset local role authenticated;\nselect set_config('request.jwt.claim.sub','${authUserId}',true);\nselect set_config('app.identity_id','${identityId}',true);\nselect set_config('app.organisation_id','${organisationId}',true);\nselect row_to_json(t)::text from (select * from operations.create_or_get_with_payload_hash(${lit(opId)}::uuid,${lit(orgId)}::uuid,${lit(key)},${lit(action)},${lit(identity)}::uuid,${lit(purpose)},${lit(expires)}::timestamptz,${lit(resourceId)}::uuid,${lit(payloadRef)},${lit(payloadIdentity)}::jsonb)) t;\ncommit;`);
       const line = output.split('\n').find(entry => entry.startsWith('{'));
-      return (line ? [JSON.parse(line)] : []) as T[];
+      if (!line) throw new Error('research_result_snapshot_write_no_row:' + output);
+      const row = JSON.parse(line) as Record<string, unknown>;
+      if (!row.result_set_id || !row.result_hash) {
+        throw new Error('research_result_snapshot_write_shape_invalid:' + Object.keys(row).sort().join(','));
+      }
+      return [row] as T[];
     }
     if (sql.includes('operations.create_or_get(')) {
       const [opId, orgId, key, action, identity, purpose, expires, payloadRef] = params;
@@ -144,53 +149,6 @@ rollback;`);
       const line = output.split('\n').find(entry => entry.startsWith('{'));
       return (line ? [JSON.parse(line)] : []) as T[];
     }
-    if (sql.includes('core_private.persist_research_query_result_set')) {
-      const [operationId, queryId, providerId, providerVersion, requestHash, cursorKey, providerQueryReference, resultPayload] = params;
-      const lit = (value: unknown) => value === null || value === undefined ? 'null' : "'" + String(value).replaceAll("'", "''") + "'";
-      const statement = `select row_to_json(t)::text from (
-        select * from core_private.persist_research_query_result_set(
-          ${lit(operationId)}::uuid,${lit(queryId)}::uuid,${lit(providerId)},${lit(providerVersion)},
-          ${lit(requestHash)},${lit(cursorKey)},${lit(providerQueryReference)},${lit(resultPayload)}::jsonb
-        )
-      ) t;`;
-      return jsonRow(await psql(contextSql(statement))) as T[];
-    }
-
-    if (sql.includes('from core.research_query_result_sets')) {
-      let statement: string;
-      if (params.length === 6) {
-        const [operationId, orgId, identity, queryId, requestHash, providerId] = params;
-        statement = `select row_to_json(t)::text from (
-          select r.id as result_set_id, r.result_hash, r.result_payload
-            from core.research_query_result_sets r
-            join operations.operations o on o.id = ${literal(operationId)}::uuid
-           where o.organisation_id = ${literal(orgId)}::uuid
-             and o.identity_id = ${literal(identity)}::uuid
-             and o.action = 'research.query'
-             and o.payload_ref = ${literal(queryId)}
-             and o.payload_hash = ${literal(requestHash)}
-             and r.organisation_id = ${literal(orgId)}::uuid
-             and r.identity_id = ${literal(identity)}::uuid
-             and r.query_id = ${literal(queryId)}::uuid
-             and r.request_hash = ${literal(requestHash)}
-             and r.provider_id = ${literal(providerId)}
-           order by r.retrieved_at desc, r.created_at desc
-           limit 1
-        ) t;`;
-      } else {
-        const [resultSetId, orgId, identity] = params;
-        statement = `select row_to_json(t)::text from (
-          select r.id as result_set_id, r.result_hash, r.result_payload
-            from core.research_query_result_sets r
-           where r.id = ${literal(resultSetId)}::uuid
-             and r.organisation_id = ${literal(orgId)}::uuid
-             and r.identity_id = ${literal(identity)}::uuid
-           limit 1
-        ) t;`;
-      }
-      return jsonRow(await psql(contextSql(statement))) as T[];
-    }
-
     if (sql.includes('operations.record_execution_outcome')) {
       const [id, attempt, outcome, errorCode, resultRef, resultHash, occurredAt] = params;
       const esc = (value: unknown) => value === null || value === undefined ? 'null' : "'" + String(value).replaceAll("'", "''") + "'";

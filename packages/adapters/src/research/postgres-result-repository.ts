@@ -30,7 +30,12 @@ export class PostgresResearchResultStore implements ResearchResultStore {
         query.cursor?.trim() || '*', result.providerQueryReference, JSON.stringify(result)],
     );
     const row = rows[0];
-    if (!row?.result_set_id || !row.result_hash) throw new Error('research_result_persistence_failed');
+    if (!row?.result_set_id) {
+      throw new Error('research_result_persistence_failed:result_set_id_missing');
+    }
+    if (!row.result_hash) {
+      throw new Error('research_result_persistence_failed:result_hash_missing');
+    }
     return { resultSetId: row.result_set_id, resultHash: row.result_hash, result };
   }
 
