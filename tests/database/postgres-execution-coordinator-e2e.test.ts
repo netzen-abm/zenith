@@ -8,6 +8,7 @@ import { PostgresExecutionOutcomeRecorder } from '../../packages/operation-queue
 import { PostgresOperationStore } from '../../packages/operation-queue/src/postgres-operation-store.ts';
 import { PostgresResearchQueryStore } from '../../packages/adapters/src/research/postgres-repository.ts';
 import { PostgresResearchResultStore } from '../../packages/adapters/src/research/postgres-result-repository.ts';
+import { CrossrefResearchProvider } from '../../packages/adapters/src/research/crossref-provider.ts';
 import { ResearchOperation } from '../../packages/capabilities/src/research-operation.ts';
 import type { ResearchQuery } from '../../packages/capabilities/src/research-intelligence.ts';
 
@@ -491,24 +492,39 @@ assert.equal(
   'malformed idempotency identity must fail before inserting an operation',
 );
 
-const realResearchProvider = {
-  providerId: 'e2e-fixture', adapterVersion: '1',
-  async search(query: ResearchQuery) {
-    researchProviderCalls += 1;
-    return {
-      queryId: query.queryId, providerId: 'e2e-fixture',
-      providerQueryReference: 'e2e:research-result-5', retrievedAt: new Date().toISOString(),
-      results: [{
-        canonicalWorkId: 'doi:10.1000/pattanam', title: 'Pattanam archaeological metadata',
-        identifiers: ['doi:10.1000/pattanam'], sourceProvenance: 'e2e-fixture:crossref',
-        rightsMetadata: { provider: 'e2e-fixture', licenseUrls: [] },
-      }],
-      partial: false, warnings: [],
-    };
+// Exercise the production Crossref adapter against a deterministic HTTP response. No live
+// Crossref network is required, but the provider mapping, tenant non-disclosure, result snapshot
+// persistence, and crash-window recovery all traverse the real adapter implementation.
+let crossrefHttpCalls = 0;
+const crossrefRequestUrls: URL[] = [];
+const crossrefResponseBody = {
+  message: {
+    'next-cursor': 'crossref-e2e-next-cursor',
+    items: [{
+      DOI: 'https://doi.org/10.1000/PATTANAM',
+      title: ['Pattanam archaeological metadata'],
+      type: 'journal-article',
+      published: { 'date-parts': [[2024, 3, 5]] },
+      license: [{ URL: 'https://creativecommons.org/licenses/by/4.0/' }],
+      URL: 'https://doi.org/10.1000/pattanam',
+    }],
   },
 };
-let researchProviderCalls = 0;
-const buildResearchOperation = () => new ResearchOperation(researchStore, realResearchProvider, {
+const buildCrossrefProvider = () => new CrossrefResearchProvider({
+  mailto: 'research-e2e@example.org',
+  requestIntervalMs: 0,
+  timeoutMs: 1_000,
+  cacheTtlMs: 0,
+  fetchImpl: async input => {
+    crossrefHttpCalls += 1;
+    crossrefRequestUrls.push(new URL(String(input)));
+    return new Response(JSON.stringify(crossrefResponseBody), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  },
+});
+const buildResearchOperation = () => new ResearchOperation(researchStore, buildCrossrefProvider(), {
   authorization: { authorize: async () => true },
   reservation,
   operationStore: realOperationStore,
@@ -521,20 +537,36 @@ assert.equal(researchFirst.operationId, canonicalResearchOperationId, 'PostgreSQ
 assert.equal(researchFirst.state, 'acknowledged');
 assert.ok(researchFirst.resultRef && /^[0-9a-f-]{36}$/.test(researchFirst.resultRef), 'result reference is the durable PostgreSQL result-set ID');
 const savedResearchResult = await resultStore.get(researchFirst.resultRef!, organisationId, identityId);
-assert.equal(savedResearchResult?.result.providerQueryReference, 'e2e:research-result-5');
+assert.equal(savedResearchResult?.result.providerId, 'crossref');
+assert.match(savedResearchResult?.result.providerQueryReference ?? '', /^crossref:works:[0-9a-f]{64}$/);
+assert.equal(savedResearchResult?.result.results[0]?.canonicalWorkId, 'doi:10.1000/pattanam');
 assert.equal(savedResearchResult?.result.results[0]?.title, 'Pattanam archaeological metadata');
+assert.equal(savedResearchResult?.result.results[0]?.workType, 'journal-article');
+assert.equal(savedResearchResult?.result.results[0]?.publicationDate, '2024-03-05');
+assert.deepEqual(savedResearchResult?.result.results[0]?.rightsMetadata, {
+  provider: 'Crossref',
+  licenseUrls: ['https://creativecommons.org/licenses/by/4.0/'],
+  metadataUrl: 'https://doi.org/10.1000/pattanam',
+});
 assert.equal(savedResearchResult?.resultHash.length, 64);
 assert.equal(await psql(`select count(*) from core.research_query_result_sets where query_id = '${researchQueryId}'`), '1');
-assert.equal(researchProviderCalls, 1);
+assert.equal(crossrefHttpCalls, 1, 'first Research query performs one mocked Crossref request');
+assert.equal(crossrefRequestUrls.length, 1);
+assert.equal(crossrefRequestUrls[0].origin, 'https://api.crossref.org');
+assert.equal(crossrefRequestUrls[0].pathname, '/works');
+assert.equal(crossrefRequestUrls[0].searchParams.get('mailto'), 'research-e2e@example.org');
+assert.equal(crossrefRequestUrls[0].href.includes(organisationId), false, 'tenant identifier must not be disclosed to provider');
+assert.equal(crossrefRequestUrls[0].href.includes(identityId), false, 'identity identifier must not be disclosed to provider');
+assert.equal(crossrefRequestUrls[0].href.includes(researchQueryId), false, 'internal query ID must not be disclosed to provider');
 const researchRetry = await buildResearchOperation().execute({ ...researchQuery, filters: { period: { end: 100, start: 1 }, region: 'Kerala' } });
 assert.equal(researchRetry.operationId, researchFirst.operationId);
 assert.equal(researchRetry.resultRef, researchFirst.resultRef);
-assert.equal(researchProviderCalls, 1, 'fresh ResearchOperation instance must replay durable result without a second provider call');
+assert.equal(crossrefHttpCalls, 1, 'fresh ResearchOperation instance must replay durable result without a second Crossref HTTP request');
 await assert.rejects(
   () => buildResearchOperation().execute({ ...researchQuery, text: 'changed payload must conflict' }),
   /operation_idempotency_conflict/,
 );
-assert.equal(researchProviderCalls, 1, 'changed payload must fail before provider execution');
+assert.equal(crossrefHttpCalls, 1, 'changed payload must fail before provider execution');
 assert.equal(await psql(`select state || '|' || attempt_count from operations.operations where id = '${canonicalResearchOperationId}'`), 'acknowledged|1');
 assert.equal(await psql(`select count(*) from operations.execution_outcomes where operation_id = '${canonicalResearchOperationId}'`), '1');
 await psql(`
@@ -563,12 +595,12 @@ insert into operations.operations(
   'research.query',null,'research-e2e',clock_timestamp()+interval '10 minutes','${legacyResearchQueryId.toUpperCase()}'
 );
 `);
-const legacyProviderCallsBefore = researchProviderCalls;
+const legacyProviderCallsBefore = crossrefHttpCalls;
 const legacyResearchQuery = { ...researchQuery, queryId: legacyResearchQueryId, text: 'legacy unpersisted Research query' };
 const legacyResearchResult = await buildResearchOperation().execute(legacyResearchQuery);
 assert.equal(legacyResearchResult.operationId, legacyResearchOperationId);
 assert.equal(legacyResearchResult.state, 'acknowledged');
-assert.equal(researchProviderCalls, legacyProviderCallsBefore + 1, 'legacy row with no side effect is recovered exactly once');
+assert.equal(crossrefHttpCalls, legacyProviderCallsBefore + 1, 'legacy row with no side effect is recovered exactly once');
 assert.equal(
   await psql(`select payload_hash is not null from operations.operations where id = '${legacyResearchOperationId}'`),
   't',
@@ -576,7 +608,7 @@ assert.equal(
 );
 const legacyResearchReplay = await buildResearchOperation().execute({ ...legacyResearchQuery });
 assert.equal(legacyResearchReplay.operationId, legacyResearchOperationId);
-assert.equal(researchProviderCalls, legacyProviderCallsBefore + 1, 'durable legacy recovery replay must not rerun provider');
+assert.equal(crossrefHttpCalls, legacyProviderCallsBefore + 1, 'durable legacy recovery replay must not issue a second Crossref request');
 await psql(`
 delete from operations.execution_outbox where operation_id = '${legacyResearchOperationId}';
 delete from operations.execution_outcomes where operation_id = '${legacyResearchOperationId}';
@@ -616,26 +648,26 @@ const ambiguousResearchRecorder = {
   },
   findLatest: (id: string) => outcomeRecorder.findLatest(id),
 };
-const buildAmbiguousResearchOperation = () => new ResearchOperation(researchStore, realResearchProvider, {
+const buildAmbiguousResearchOperation = () => new ResearchOperation(researchStore, buildCrossrefProvider(), {
   authorization: { authorize: async () => true },
   reservation,
   operationStore: realOperationStore,
   resultStore,
   outcomeRecorder: ambiguousResearchRecorder,
 });
-const providerCallsBeforeAmbiguity = researchProviderCalls;
+const providerCallsBeforeAmbiguity = crossrefHttpCalls;
 await assert.rejects(
   () => buildAmbiguousResearchOperation().execute(ambiguousResearchQuery),
   /simulated_research_outcome_persistence_interruption/,
 );
-assert.equal(researchProviderCalls, providerCallsBeforeAmbiguity + 1, 'provider succeeds exactly once before outcome persistence fails');
+assert.equal(crossrefHttpCalls, providerCallsBeforeAmbiguity + 1, 'Crossref returns exactly once before outcome persistence fails');
 assert.equal(ambiguousResearchRecordCalls, 1);
 const ambiguousResearchRetry = buildAmbiguousResearchOperation();
 const recoveredResearchResult = await ambiguousResearchRetry.execute({ ...ambiguousResearchQuery });
 assert.equal(recoveredResearchResult.state, 'acknowledged', 'persisted provider results reconcile an absent outcome');
 assert.equal(recoveredResearchResult.resultRef !== undefined, true);
 assert.equal(ambiguousResearchRecordCalls, 2, 'retry records exactly one durable outcome after finding the saved result');
-assert.equal(researchProviderCalls, providerCallsBeforeAmbiguity + 1, 'fresh ResearchOperation instance must reconcile without repeating provider work');
+assert.equal(crossrefHttpCalls, providerCallsBeforeAmbiguity + 1, 'fresh ResearchOperation instance must reconcile from the durable snapshot without a second Crossref request');
 const canonicalAmbiguousResearchId = await psql(`select id from operations.operations where idempotency_key = '${ambiguousResearchQueryId}'`);
 assert.equal(
   await psql(`select state || '|' || attempt_count from operations.operations where id = '${canonicalAmbiguousResearchId}'`),
