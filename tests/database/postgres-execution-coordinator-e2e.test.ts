@@ -7,6 +7,7 @@ import { PostgresExecutionReservation } from '../../packages/operation-queue/src
 import { PostgresExecutionOutcomeRecorder } from '../../packages/operation-queue/src/postgres-execution-outcome-recorder.ts';
 import { PostgresOperationStore } from '../../packages/operation-queue/src/postgres-operation-store.ts';
 import { PostgresResearchQueryStore } from '../../packages/adapters/src/research/postgres-repository.ts';
+import { PostgresResearchResultStore } from '../../packages/adapters/src/research/postgres-result-repository.ts';
 import { ResearchOperation } from '../../packages/capabilities/src/research-operation.ts';
 import type { ResearchQuery } from '../../packages/capabilities/src/research-intelligence.ts';
 
@@ -114,6 +115,27 @@ rollback;`);
       const lit = (value: unknown) => value === null || value === undefined ? 'null' : "'" + String(value).replaceAll("'", "''") + "'";
       const output = await psql(`begin;\nset local role authenticated;\nselect set_config('request.jwt.claim.sub','${authUserId}',true);\nselect set_config('app.identity_id','${identityId}',true);\nselect set_config('app.organisation_id','${organisationId}',true);\nselect row_to_json(t)::text from (select id,research_question_id,intent,query_text,concepts,filters,sort,page_size,cursor,requested_fields,open_access_required,identity_id as requester_identity_id,organisation_id,purpose from core.research_query_requests where id = ${lit(id)}::uuid and organisation_id = ${lit(orgId)}::uuid limit 1) t;\ncommit;`);
       const line = output.split('\n').find(entry => entry.startsWith('{'));
+      return (line ? [JSON.parse(line)] : []) as T[];
+    }
+    if (sql.includes('core_private.persist_research_query_result_set')) {
+      const [opId, queryId, providerId, providerVersion, requestHash, cursorKey, providerReference, resultPayload] = params;
+      const lit = (value: unknown) => value === null || value === undefined ? 'null' : "'" + String(value).replaceAll("'", "''") + "'";
+      const output = await psql(`begin;\\nset local role authenticated;\\nselect set_config('request.jwt.claim.sub','${authUserId}',true);\\nselect set_config('app.identity_id','${identityId}',true);\\nselect set_config('app.organisation_id','${organisationId}',true);\\nselect row_to_json(t)::text from (select * from core_private.persist_research_query_result_set(${lit(opId)}::uuid,${lit(queryId)}::uuid,${lit(providerId)},${lit(providerVersion)},${lit(requestHash)},${lit(cursorKey)},${lit(providerReference)},${lit(resultPayload)}::jsonb)) t;\\ncommit;`);
+      const line = output.split('\\n').find(entry => entry.startsWith('{'));
+      return (line ? [JSON.parse(line)] : []) as T[];
+    }
+    if (sql.includes('from core.research_query_result_sets r') && sql.includes('join operations.operations o')) {
+      const [opId, orgId, identity, queryId, requestHash, providerId] = params;
+      const lit = (value: unknown) => value === null || value === undefined ? 'null' : "'" + String(value).replaceAll("'", "''") + "'";
+      const output = await psql(`begin;\\nset local role authenticated;\\nselect set_config('request.jwt.claim.sub','${authUserId}',true);\\nselect set_config('app.identity_id','${identityId}',true);\\nselect set_config('app.organisation_id','${organisationId}',true);\\nselect row_to_json(t)::text from (select r.id as result_set_id,r.result_hash,r.result_payload from core.research_query_result_sets r join operations.operations o on o.id = ${lit(opId)}::uuid where o.organisation_id = ${lit(orgId)}::uuid and o.identity_id = ${lit(identity)}::uuid and o.action = 'research.query' and o.payload_ref = ${lit(queryId)} and o.payload_hash = ${lit(requestHash)} and r.organisation_id = ${lit(orgId)}::uuid and r.identity_id = ${lit(identity)}::uuid and r.query_id = ${lit(queryId)}::uuid and r.request_hash = ${lit(requestHash)} and r.provider_id = ${lit(providerId)} order by r.retrieved_at desc,r.created_at desc limit 1) t;\\ncommit;`);
+      const line = output.split('\\n').find(entry => entry.startsWith('{'));
+      return (line ? [JSON.parse(line)] : []) as T[];
+    }
+    if (sql.includes('from core.research_query_result_sets r')) {
+      const [resultSetId, orgId, identity] = params;
+      const lit = (value: unknown) => value === null || value === undefined ? 'null' : "'" + String(value).replaceAll("'", "''") + "'";
+      const output = await psql(`begin;\\nset local role authenticated;\\nselect set_config('request.jwt.claim.sub','${authUserId}',true);\\nselect set_config('app.identity_id','${identityId}',true);\\nselect set_config('app.organisation_id','${organisationId}',true);\\nselect row_to_json(t)::text from (select r.id as result_set_id,r.result_hash,r.result_payload from core.research_query_result_sets r where r.id = ${lit(resultSetId)}::uuid and r.organisation_id = ${lit(orgId)}::uuid and r.identity_id = ${lit(identity)}::uuid limit 1) t;\\ncommit;`);
+      const line = output.split('\\n').find(entry => entry.startsWith('{'));
       return (line ? [JSON.parse(line)] : []) as T[];
     }
     if (sql.includes('from operations.execution_outcomes')) {
@@ -397,6 +419,7 @@ await psql(`
 delete from operations.execution_outbox where operation_id in (select id from operations.operations where idempotency_key = '${researchQueryId}');
 delete from operations.execution_outcomes where operation_id in (select id from operations.operations where idempotency_key = '${researchQueryId}');
 delete from operations.operations where idempotency_key = '${researchQueryId}';
+delete from core.research_query_result_sets where query_id = '${researchQueryId}';
 delete from core.research_query_requests where id = '${researchQueryId}';
 `);
 const researchQuery: ResearchQuery = {
@@ -410,6 +433,11 @@ const researchStore = new PostgresResearchQueryStore({
   },
 });
 const realOperationStore = new PostgresOperationStore(db);
+const resultStore = new PostgresResearchResultStore({
+  async query<T>(text: string, values: readonly unknown[] = []) {
+    return { rows: await db.query<T & Record<string, unknown>>(text, values) };
+  },
+});
 
 // Database trust-boundary assertion: callers cannot bind a query payload to another key.
 const invalidResearchOperationId = '00000000-0000-0000-0000-0000000000f7';
@@ -457,7 +485,16 @@ const realResearchProvider = {
   providerId: 'e2e-fixture', adapterVersion: '1',
   async search(query: ResearchQuery) {
     researchProviderCalls += 1;
-    return { queryId: query.queryId, providerId: 'e2e-fixture', providerQueryReference: 'e2e:research-result-5', retrievedAt: new Date().toISOString(), results: [], partial: false, warnings: [] };
+    return {
+      queryId: query.queryId, providerId: 'e2e-fixture',
+      providerQueryReference: 'e2e:research-result-5', retrievedAt: new Date().toISOString(),
+      results: [{
+        canonicalWorkId: 'doi:10.1000/pattanam', title: 'Pattanam archaeological metadata',
+        identifiers: ['doi:10.1000/pattanam'], sourceProvenance: 'e2e-fixture:crossref',
+        rightsMetadata: { provider: 'e2e-fixture', licenseUrls: [] },
+      }],
+      partial: false, warnings: [],
+    };
   },
 };
 let researchProviderCalls = 0;
@@ -465,13 +502,19 @@ const buildResearchOperation = () => new ResearchOperation(researchStore, realRe
   authorization: { authorize: async () => true },
   reservation,
   operationStore: realOperationStore,
+  resultStore,
   outcomeRecorder,
 });
 const researchFirst = await buildResearchOperation().execute(researchQuery);
 const canonicalResearchOperationId = await psql(`select id from operations.operations where idempotency_key = '${researchQueryId}'`);
 assert.equal(researchFirst.operationId, canonicalResearchOperationId, 'PostgreSQL create-or-get must return the persisted canonical operation ID');
 assert.equal(researchFirst.state, 'acknowledged');
-assert.equal(researchFirst.resultRef, 'e2e:research-result-5');
+assert.ok(researchFirst.resultRef && /^[0-9a-f-]{36}$/.test(researchFirst.resultRef), 'result reference is the durable PostgreSQL result-set ID');
+const savedResearchResult = await resultStore.get(researchFirst.resultRef!, organisationId, identityId);
+assert.equal(savedResearchResult?.result.providerQueryReference, 'e2e:research-result-5');
+assert.equal(savedResearchResult?.result.results[0]?.title, 'Pattanam archaeological metadata');
+assert.equal(savedResearchResult?.resultHash.length, 64);
+assert.equal(await psql(`select count(*) from core.research_query_result_sets where query_id = '${researchQueryId}'`), '1');
 assert.equal(researchProviderCalls, 1);
 const researchRetry = await buildResearchOperation().execute({ ...researchQuery, filters: { period: { end: 100, start: 1 }, region: 'Kerala' } });
 assert.equal(researchRetry.operationId, researchFirst.operationId);
@@ -499,6 +542,7 @@ await psql(`
 delete from operations.execution_outbox where operation_id = '${legacyResearchOperationId}';
 delete from operations.execution_outcomes where operation_id = '${legacyResearchOperationId}';
 delete from operations.operations where id = '${legacyResearchOperationId}';
+delete from core.research_query_result_sets where query_id = '${legacyResearchQueryId}';
 delete from core.research_query_requests where id = '${legacyResearchQueryId}';
 insert into operations.operations(
   id,organisation_id,identity_id,idempotency_key,action,resource_id,purpose,expires_at,payload_ref
@@ -531,12 +575,13 @@ console.log('PostgreSQL legacy Research pre-persistence recovery assertions pass
 
 // Research-specific ambiguity proof against real PostgreSQL persistence:
 // the provider succeeds, durable recording fails, and a fresh operation instance
-// must leave the canonical operation unresolved rather than re-entering the provider.
+// must reconcile the saved result snapshot without re-entering the provider.
 const ambiguousResearchQueryId = '00000000-0000-0000-0000-0000000000f6';
 await psql(`
 delete from operations.execution_outbox where operation_id in (select id from operations.operations where idempotency_key = '${ambiguousResearchQueryId}');
 delete from operations.execution_outcomes where operation_id in (select id from operations.operations where idempotency_key = '${ambiguousResearchQueryId}');
 delete from operations.operations where idempotency_key = '${ambiguousResearchQueryId}';
+delete from core.research_query_result_sets where query_id = '${ambiguousResearchQueryId}';
 delete from core.research_query_requests where id = '${ambiguousResearchQueryId}';
 `);
 const ambiguousResearchQuery: ResearchQuery = {
@@ -545,10 +590,15 @@ const ambiguousResearchQuery: ResearchQuery = {
   text: 'Pattanam archaeology ambiguous outcome',
 };
 let ambiguousResearchRecordCalls = 0;
+let failAmbiguousResearchOutcomeOnce = true;
 const ambiguousResearchRecorder = {
-  async record() {
+  async record(operation: Parameters<typeof outcomeRecorder.record>[0], outcome: Parameters<typeof outcomeRecorder.record>[1]) {
     ambiguousResearchRecordCalls += 1;
-    throw new Error('simulated_research_outcome_persistence_interruption');
+    if (failAmbiguousResearchOutcomeOnce) {
+      failAmbiguousResearchOutcomeOnce = false;
+      throw new Error('simulated_research_outcome_persistence_interruption');
+    }
+    return outcomeRecorder.record(operation, outcome);
   },
   findLatest: (id: string) => outcomeRecorder.findLatest(id),
 };
@@ -556,6 +606,7 @@ const buildAmbiguousResearchOperation = () => new ResearchOperation(researchStor
   authorization: { authorize: async () => true },
   reservation,
   operationStore: realOperationStore,
+  resultStore,
   outcomeRecorder: ambiguousResearchRecorder,
 });
 const providerCallsBeforeAmbiguity = researchProviderCalls;
@@ -566,20 +617,20 @@ await assert.rejects(
 assert.equal(researchProviderCalls, providerCallsBeforeAmbiguity + 1, 'provider succeeds exactly once before outcome persistence fails');
 assert.equal(ambiguousResearchRecordCalls, 1);
 const ambiguousResearchRetry = buildAmbiguousResearchOperation();
-await assert.rejects(
-  () => ambiguousResearchRetry.execute({ ...ambiguousResearchQuery }),
-  /research_not_executed:deny_reservation/,
-);
-assert.equal(researchProviderCalls, providerCallsBeforeAmbiguity + 1, 'fresh ResearchOperation instance must not repeat provider work while outcome is unknown');
-assert.equal(ambiguousResearchRecordCalls, 1, 'retry must not attempt to fabricate a durable outcome');
+const recoveredResearchResult = await ambiguousResearchRetry.execute({ ...ambiguousResearchQuery });
+assert.equal(recoveredResearchResult.state, 'acknowledged', 'persisted provider results reconcile an absent outcome');
+assert.equal(recoveredResearchResult.resultRef !== undefined, true);
+assert.equal(ambiguousResearchRecordCalls, 2, 'retry records exactly one durable outcome after finding the saved result');
+assert.equal(researchProviderCalls, providerCallsBeforeAmbiguity + 1, 'fresh ResearchOperation instance must reconcile without repeating provider work');
 const canonicalAmbiguousResearchId = await psql(`select id from operations.operations where idempotency_key = '${ambiguousResearchQueryId}'`);
 assert.equal(
   await psql(`select state || '|' || attempt_count from operations.operations where id = '${canonicalAmbiguousResearchId}'`),
-  'in_flight|1',
-  'ambiguous Research result must remain unresolved at the durable operation boundary',
+  'acknowledged|1',
+  'reconciliation records the known result without incrementing the external attempt count',
 );
-assert.equal(await psql(`select count(*) from operations.execution_outcomes where operation_id = '${canonicalAmbiguousResearchId}'`), '0');
-assert.equal(await psql(`select count(*) from operations.execution_outbox where operation_id = '${canonicalAmbiguousResearchId}'`), '0');
+assert.equal(await psql(`select count(*) from operations.execution_outcomes where operation_id = '${canonicalAmbiguousResearchId}'`), '1');
+assert.equal(await psql(`select count(*) from operations.execution_outbox where operation_id = '${canonicalAmbiguousResearchId}'`), '1');
+assert.equal(await psql(`select count(*) from core.research_query_result_sets where query_id = '${ambiguousResearchQueryId}'`), '1');
 await psql(`
 delete from operations.execution_outbox where operation_id = '${canonicalAmbiguousResearchId}';
 delete from operations.execution_outcomes where operation_id = '${canonicalAmbiguousResearchId}';

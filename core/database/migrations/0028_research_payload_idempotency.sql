@@ -171,7 +171,8 @@ begin
       -- The old code could persist the operation before its query row. Bind a hash only
       -- for this provably unexecuted state; never bless an attempted/ambiguous operation.
       update operations.operations
-         set payload_hash = v_payload_hash
+         set payload_hash = v_payload_hash,
+             payload_ref = lower(btrim(payload_ref))
        where id = v_operation.id
       returning * into v_operation;
     end if;

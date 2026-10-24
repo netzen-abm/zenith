@@ -126,7 +126,7 @@ An adapter must:
 
 The bounded first adapter is `CrossrefResearchProvider` at `packages/adapters/src/research/crossref-provider.ts`. It is metadata-only and preserves DOI identity, provenance, provider-supplied license URLs, cursor pagination, and warnings for filters it cannot apply. It uses the public/polite API without an SDK or API key, requests no abstracts/full text, and does not automatically retry HTTP failures. The `openAccessRequired` condition fails closed unless it can be verified.
 
-The adapter is contract-tested with mocked HTTP responses. It is not yet a complete user-facing search integration: current `ResearchOperation` does not durably persist the returned work list. See ADR 0017 before exposing returned works through a production surface.
+The adapter is contract-tested with mocked HTTP responses. The returned metadata-only work list has a tenant/identity-scoped durable snapshot in `core.research_query_result_sets`. Writes pass through `core_private.persist_research_query_result_set`, which validates the canonical in-flight operation and field allowlist. Provider success followed by outcome-recording interruption is reconciled from the stored snapshot without a second provider call; the real PostgreSQL E2E is the acceptance gate. See ADR 0017 for the remaining production-surface limits.
 
 ## Provider capability examples
 
