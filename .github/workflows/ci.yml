@@ -149,6 +149,15 @@ jobs:
           grep -Fq "v_operation.payload_hash is distinct from v_payload_hash" "$hash_file"
           grep -Fq "revoke all on function operations.create_or_get_with_payload_hash" "$hash_file"
           grep -Fq "grant execute on function operations.create_or_get_with_payload_hash" "$hash_file"
+          results_file="core/database/migrations/0029_research_query_result_sets.sql"
+          test -f "$results_file"
+          grep -Eqi "security definer" "$results_file"
+          grep -Fq "set search_path = ''" "$results_file"
+          grep -Fq "o.state = 'in_flight'" "$results_file"
+          grep -Fq "o.payload_hash = p_request_hash" "$results_file"
+          grep -Fq "research_result_work_field_not_allowed" "$results_file"
+          grep -Fq "revoke all on function core_private.persist_research_query_result_set" "$results_file"
+          grep -Fq "grant execute on function core_private.persist_research_query_result_set" "$results_file"
 
       - name: Validate explicit migration inventory and order
         shell: bash
@@ -246,8 +255,15 @@ jobs:
       - name: Run Crossref adapter contract tests
         run: node --experimental-strip-types packages/adapters/src/research/crossref-provider.test.ts
 
+      - name: Run PostgreSQL Research result-store adapter contract tests
+        run: node --experimental-strip-types packages/adapters/src/research/postgres-result-repository.test.ts
+
+
       - name: Run typed Research provider error tests
         run: node --experimental-strip-types packages/capabilities/src/research-provider-errors.test.ts
+
+      - name: Run PostgreSQL Research result-store adapter contract tests
+        run: node --experimental-strip-types packages/adapters/src/research/postgres-result-repository.test.ts
 
       - name: Run research execution integration tests
         run: node --experimental-strip-types packages/capabilities/src/research-operation.test.ts

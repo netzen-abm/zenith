@@ -37,6 +37,8 @@ expected=(
   "0026_space_time_authorization_action_mapping.sql"
   "0027_research_authorization_action_mapping.sql"
   "0028_research_payload_idempotency.sql"
+  "0029_research_query_result_sets.sql"
+  "0029_research_query_result_sets.sql"
 )
 
 mapfile -t actual < <(find "$MIGRATIONS_DIR" -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sort)
