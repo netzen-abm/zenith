@@ -243,6 +243,12 @@ jobs:
       - name: Run research intelligence query contract tests
         run: node --experimental-strip-types packages/capabilities/src/research-intelligence.test.ts
 
+      - name: Run Crossref adapter contract tests
+        run: node --experimental-strip-types packages/adapters/src/research/crossref-provider.test.ts
+
+      - name: Run typed Research provider error tests
+        run: node --experimental-strip-types packages/capabilities/src/research-provider-errors.test.ts
+
       - name: Run research execution integration tests
         run: node --experimental-strip-types packages/capabilities/src/research-operation.test.ts
 

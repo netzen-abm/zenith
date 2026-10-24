@@ -122,6 +122,12 @@ An adapter must:
 8. avoid retaining or redistributing content beyond applicable policy and rights;
 9. remain replaceable without changing Core semantics.
 
+## Implemented first adapter — Crossref
+
+The bounded first adapter is `CrossrefResearchProvider` at `packages/adapters/src/research/crossref-provider.ts`. It is metadata-only and preserves DOI identity, provenance, provider-supplied license URLs, cursor pagination, and warnings for filters it cannot apply. It uses the public/polite API without an SDK or API key, requests no abstracts/full text, and does not automatically retry HTTP failures. The `openAccessRequired` condition fails closed unless it can be verified.
+
+The adapter is contract-tested with mocked HTTP responses. It is not yet a complete user-facing search integration: current `ResearchOperation` does not durably persist the returned work list. See ADR 0017 before exposing returned works through a production surface.
+
 ## Provider capability examples
 
 ```text

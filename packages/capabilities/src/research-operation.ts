@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { OperationEnvelope } from '../../contracts/src/operation.ts';
 import type { OperationStore } from '../../contracts/src/operation-store.ts';
 import { ExecutionCoordinator, type ExecutionAuthorization, type ExecutionOutcomeRecorder, type ExecutionReservation } from '../../operation-queue/src/execution-coordinator.ts';
-import { validateResearchQuery, type ResearchQuery, type ResearchProvider } from './research-intelligence.ts';
+import { ResearchProviderError, validateResearchQuery, type ResearchQuery, type ResearchProvider } from './research-intelligence.ts';
 import type { ResearchQueryStore } from './research/repository.ts';
 
 export type ResearchExecutionContext = { authorization: ExecutionAuthorization; reservation: ExecutionReservation; outcomeRecorder: ExecutionOutcomeRecorder; operationStore: OperationStore };
@@ -117,7 +117,13 @@ export class ResearchOperation {
     try {
       const result = await this.provider.search(query);
       return { outcome: 'acknowledged' as const, resultRef: result.providerQueryReference };
-    } catch {
+    } catch (error) {
+      if (error instanceof ResearchProviderError) {
+        return {
+          outcome: error.retryable ? 'retry_wait' as const : 'rejected' as const,
+          errorCode: error.code,
+        };
+      }
       return { outcome: 'retry_wait' as const, errorCode: 'research_provider_failure' };
     }
   }

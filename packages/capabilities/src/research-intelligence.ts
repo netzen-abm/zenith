@@ -15,6 +15,23 @@ export type ResearchQuery = {
   purpose: string;
 };
 
+/**
+ * Typed provider failure semantics; retry scheduling remains owned by the operation kernel.
+ */
+export class ResearchProviderError extends Error {
+  readonly code: string;
+  readonly retryable: boolean;
+  readonly retryAfterSeconds?: number;
+
+  constructor(code: string, retryable: boolean, retryAfterSeconds?: number) {
+    super(code);
+    this.name = 'ResearchProviderError';
+    this.code = code;
+    this.retryable = retryable;
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
 export type ResearchProvider = {
   providerId: string;
   adapterVersion: string;
